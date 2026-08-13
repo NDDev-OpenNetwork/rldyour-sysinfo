@@ -1,0 +1,26 @@
+[package]
+name = "rldyour-sysinfod"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "AGPL-3.0-or-later"
+description = "Resource-frugal system metrics daemon for the rldyour-sysinfo GNOME panel indicator"
+repository = "https://github.com/NDDev-OpenNetwork/rldyour-sysinfo"
+
+[dependencies]
+nvml-wrapper = { version = "0.12.1", optional = true }
+
+[features]
+default = ["nvidia"]
+nvidia = ["dep:nvml-wrapper"]
+
+# Size and residency win over throughput: the whole workload is a handful of
+# short reads every five seconds, so the smallest possible image is the right
+# trade. `panic = "abort"` also removes unwinding tables and makes a failure a
+# clean restart under systemd rather than a half-live process.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
