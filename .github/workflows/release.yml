@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install schema compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libglib2.0-bin
+
+      # A release that has not passed the gates is worse than no release.
+      - name: Verify
+        run: |
+          ./scripts/check-extension.sh
+          cd daemon
+          cargo fmt --check
+          cargo clippy --all-targets --all-features -- -D warnings
+          cargo test --all-features --locked
+
+      - name: Build the daemon
+        run: cargo build --release --locked --manifest-path daemon/Cargo.toml
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/stage
+
+          # The daemon ships with the units it needs, so the archive alone is
+          # enough to run it without cloning the repository.
+          install -Dm755 daemon/target/release/rldyour-sysinfod "dist/stage/rldyour-sysinfod"
+          install -Dm644 daemon/systemd/rldyour-sysinfod.service "dist/stage/systemd/rldyour-sysinfod.service"
+          install -Dm644 daemon/systemd/rldyour-sysinfod.socket "dist/stage/systemd/rldyour-sysinfod.socket"
+          install -Dm644 LICENSE "dist/stage/LICENSE"
+          tar -czf "dist/rldyour-sysinfod-${version}-x86_64-linux.tar.gz" -C dist/stage .
+
+          # The extension zip mirrors what the shell expects to find in an
+          # extension directory: entry points at the root, schemas compiled.
+          cp -r extension dist/extension
+          rm -rf dist/extension/tests
+          glib-compile-schemas dist/extension/schemas
+          (cd dist/extension && zip -qr "../rldyour-sysinfo@nddev-opennetwork-${version}.zip" .)
+
+          ls -la dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            dist/*.tar.gz dist/*.zip

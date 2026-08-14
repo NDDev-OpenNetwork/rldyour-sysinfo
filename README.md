@@ -1,5 +1,7 @@
 # rldyour-sysinfo
 
+[![CI](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml/badge.svg)](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml)
+
 System load in the GNOME top bar, immediately left of the clock: processor,
 memory, graphics, temperatures, disk and network — refreshed every five
 seconds, at a cost small enough to forget about.
@@ -74,16 +76,33 @@ To remove everything: `./uninstall.sh`.
 
 ## Configuration
 
-Both variables belong in `~/.config/systemd/user/rldyour-sysinfod.service`.
+Open the extension's preferences for what most people want to change:
+
+- **Interval** — seconds between readings, 1 to 60. The indicator asks the
+  daemon for this cadence when it connects, and the daemon serves the fastest
+  any connected client requested.
+- **Panel** — which of processor, memory, graphics and network appear in the
+  top bar, and whether temperatures are shown beside them. The dropdown always
+  lists everything regardless.
+
+Two settings belong to the service itself, in
+`~/.config/systemd/user/rldyour-sysinfod.service`:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RLDYOUR_SYSINFO_INTERVAL` | `5` | Seconds between samples |
+| `RLDYOUR_SYSINFO_INTERVAL` | `5` | Cadence when no client asks for one |
 | `RLDYOUR_SYSINFO_GPU` | unset | Set to `0` to skip NVML entirely |
 
 ## Protocol
 
-One newline-terminated JSON object per tick. Every metric is always present;
+A client may open with a single line stating the cadence it wants, which the
+daemon honours within one to sixty seconds and otherwise ignores:
+
+```json
+{"interval":5}
+```
+
+The daemon then sends one newline-terminated JSON object per tick. Every metric is always present;
 one the host cannot supply is `null`, so a client never distinguishes "missing"
 from "unsupported". `v` is incremented only on an incompatible change.
 
@@ -100,9 +119,15 @@ figures are bytes per second.
 ## Checks
 
 ```sh
+./scripts/check-extension.sh                      # what CI runs for the extension
 cd daemon && cargo test && cargo clippy --all-targets --all-features -- -D warnings
-gjs -m extension/tests/smoke.js   # needs the daemon reachable
+cd extension && gjs -m tests/smoke.js             # needs the daemon reachable
 ```
+
+`scripts/check-extension.sh` covers syntax, metadata, the settings keys the code
+actually reads, process isolation between the shell and preferences processes,
+and deprecated modules. It needs no running shell, which matters because
+Wayland gives no way to reload extension code without a new login.
 
 ## Licence
 

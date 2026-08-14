@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Actions are pinned to a commit, not a tag, so a moved tag cannot change what
+# runs here.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  daemon:
+    name: Daemon
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            daemon/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-features --locked
+      - run: cargo build --release --locked
+
+      # NVML is optional by design; the build without it must keep working, or
+      # the escape hatch from its twenty megabytes is not real.
+      - name: Build without GPU support
+        run: cargo build --release --locked --no-default-features
+
+  extension:
+    name: Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install schema compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libglib2.0-bin
+
+      - run: ./scripts/check-extension.sh
