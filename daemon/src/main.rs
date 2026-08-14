@@ -11,15 +11,22 @@ mod proto;
 mod source;
 
 use collector::Collector;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::process::ExitCode;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-/// Publication cadence. Overridable through `RLDYOUR_SYSINFO_INTERVAL`,
-/// expressed in whole seconds.
+/// Publication cadence when nothing asks for another. Overridable through
+/// `RLDYOUR_SYSINFO_INTERVAL`, expressed in whole seconds.
 const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
+/// Bounds for a cadence a client may request. Below one second the readings
+/// stop being meaningful for a panel; above a minute the panel stops being one.
+const MIN_INTERVAL: u64 = 1;
+const MAX_INTERVAL: u64 = 60;
+/// A client announces itself immediately or not at all, so this wait only ever
+/// costs anything for a peer that connected and then went quiet.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(250);
 /// A client that cannot absorb one short line in this long is treated as gone,
 /// so one stuck reader can never stall publication for the others.
 const WRITE_TIMEOUT: Duration = Duration::from_millis(500);
@@ -44,21 +51,21 @@ fn main() -> ExitCode {
 fn run() -> std::io::Result<()> {
     let (listener, socket_activated) = bind()?;
     let mut collector = Collector::new()?;
-    let interval = interval();
+    let configured = interval();
 
     let clients = accept_loop(listener);
-    let mut connected: Vec<UnixStream> = Vec::new();
+    let mut connected: Vec<Client> = Vec::new();
     let mut line = String::with_capacity(256);
     let mut idle_since = Some(Instant::now());
 
     loop {
-        std::thread::sleep(interval);
+        std::thread::sleep(cadence(&connected, configured));
 
         loop {
             match clients.try_recv() {
-                Ok(stream) => {
-                    let _ = stream.set_write_timeout(Some(WRITE_TIMEOUT));
-                    connected.push(stream);
+                Ok(client) => {
+                    let _ = client.stream.set_write_timeout(Some(WRITE_TIMEOUT));
+                    connected.push(client);
                     idle_since = None;
                 }
                 Err(TryRecvError::Empty) => break,
@@ -72,7 +79,7 @@ fn run() -> std::io::Result<()> {
         collector.sample().encode(&mut line);
 
         let bytes = line.as_bytes();
-        connected.retain_mut(|stream| stream.write_all(bytes).is_ok());
+        connected.retain_mut(|client| client.stream.write_all(bytes).is_ok());
 
         match (connected.is_empty(), idle_since) {
             (false, _) => idle_since = None,
@@ -130,7 +137,56 @@ fn interval() -> Duration {
 
 /// Moves blocking accepts off the timing thread, so a connection arriving mid
 /// interval never delays the next sample.
-fn accept_loop(listener: UnixListener) -> Receiver<UnixStream> {
+/// A connected client together with the cadence it asked for.
+struct Client {
+    stream: UnixStream,
+    requested: Option<u64>,
+}
+
+/// The fastest cadence anybody asked for, falling back to the configured one.
+///
+/// Taking the minimum means one client wanting a brisk panel does not force a
+/// slow one to keep up, and an unannounced client never slows anyone down.
+fn cadence(clients: &[Client], configured: Duration) -> Duration {
+    clients
+        .iter()
+        .filter_map(|client| client.requested)
+        .min()
+        .map_or(configured, Duration::from_secs)
+}
+
+/// Reads the optional opening line in which a client states its wanted cadence.
+fn handshake(stream: &UnixStream) -> Option<u64> {
+    stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).ok()?;
+
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line).ok()?;
+
+    parse_interval(&line)
+}
+
+/// Extracts a cadence request from `{"interval":N}`.
+///
+/// Anything else, including silence, yields `None` and leaves the daemon on its
+/// configured cadence, so a client that says nothing still works.
+fn parse_interval(line: &str) -> Option<u64> {
+    let seconds: u64 = line
+        .split_once("\"interval\"")?
+        .1
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start()
+        .split(|c: char| !c.is_ascii_digit())
+        .next()?
+        .parse()
+        .ok()?;
+
+    (MIN_INTERVAL..=MAX_INTERVAL)
+        .contains(&seconds)
+        .then_some(seconds)
+}
+
+fn accept_loop(listener: UnixListener) -> Receiver<Client> {
     let (sender, receiver) = mpsc::channel();
 
     let spawned = std::thread::Builder::new()
@@ -138,7 +194,10 @@ fn accept_loop(listener: UnixListener) -> Receiver<UnixStream> {
         .stack_size(ACCEPT_STACK)
         .spawn(move || {
             for stream in listener.incoming().flatten() {
-                if sender.send(stream).is_err() {
+                // The handshake blocks briefly, which is exactly why accepting
+                // lives off the timing thread.
+                let requested = handshake(&stream);
+                if sender.send(Client { stream, requested }).is_err() {
                     return;
                 }
             }
@@ -152,4 +211,34 @@ fn accept_loop(listener: UnixListener) -> Receiver<UnixStream> {
     }
 
     receiver
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_cadence_request() {
+        assert_eq!(parse_interval(r#"{"interval":3}"#), Some(3));
+        assert_eq!(parse_interval(r#"{ "interval" : 12 }"#), Some(12));
+    }
+
+    #[test]
+    fn rejects_a_cadence_outside_what_a_panel_can_use() {
+        assert_eq!(parse_interval(r#"{"interval":0}"#), None);
+        assert_eq!(parse_interval(r#"{"interval":61}"#), None);
+    }
+
+    #[test]
+    fn silence_and_noise_leave_the_configured_cadence_alone() {
+        assert_eq!(parse_interval(""), None);
+        assert_eq!(parse_interval("hello\n"), None);
+        assert_eq!(parse_interval(r#"{"interval":"fast"}"#), None);
+    }
+
+    #[test]
+    fn the_fastest_request_wins_and_silence_does_not_slow_anyone() {
+        let configured = Duration::from_secs(5);
+        assert_eq!(cadence(&[], configured), configured);
+    }
 }

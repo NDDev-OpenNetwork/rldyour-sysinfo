@@ -21,10 +21,12 @@ const MAX_LINE = 4096;
  */
 export class Client {
     /**
+     * @param {number} interval seconds between readings to ask the daemon for
      * @param {(sample: object) => void} onSample called for each decoded line
      * @param {(connected: boolean) => void} onState called when the link changes
      */
-    constructor(onSample, onState) {
+    constructor(interval, onSample, onState) {
+        this._interval = interval;
         this._onSample = onSample;
         this._onState = onState;
         this._cancellable = new Gio.Cancellable();
@@ -50,9 +52,23 @@ export class Client {
 
             this._connection = connection;
             this._stream = new Gio.DataInputStream({baseStream: connection.get_input_stream()});
+            this._announce(connection);
             this._onState(true);
             this._read();
         });
+    }
+
+    /**
+     * States the cadence this client wants. The daemon serves the fastest any
+     * client asked for, and treats silence as "no preference", so a failure
+     * here costs the requested interval and nothing else.
+     */
+    _announce(connection) {
+        try {
+            connection.get_output_stream().write_all(`{"interval":${this._interval}}\n`, this._cancellable);
+        } catch {
+            // Falls back to whatever the daemon is configured for.
+        }
     }
 
     _read() {

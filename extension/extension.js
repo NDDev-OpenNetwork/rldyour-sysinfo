@@ -14,7 +14,7 @@ const PANEL_POSITION = 0;
 
 export default class SysinfoExtension extends Extension {
     enable() {
-        this._indicator = new Indicator();
+        this._indicator = new Indicator(this.getSettings());
         Main.panel.addToStatusArea(this.uuid, this._indicator, PANEL_POSITION, PANEL_BOX);
     }
 

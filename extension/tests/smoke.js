@@ -34,7 +34,8 @@ print('\n=== client против живого демона ===');
 const loop = GLib.MainLoop.new(null, false);
 let samples = 0;
 
-const client = new Client(sample => {
+const REQUESTED_INTERVAL = 2;
+const client = new Client(REQUESTED_INTERVAL, sample => {
     samples++;
     print(`  [${samples}] v=${sample.v} cpu=${percent(sample.cpu.usage)}/${celsius(sample.cpu.temp)} ` +
           `ram=${percent(sample.memory.used)} gpu=${percent(sample.gpu.usage)}/${celsius(sample.gpu.temp)} ` +

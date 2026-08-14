@@ -13,15 +13,18 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Client} from './client.js';
 import {ABSENT, celsius, percent, rate, rateIn, rateOut} from './format.js';
 
-/** Panel cells, in display order: caption, then the keys it renders. */
+/**
+ * Panel cells in display order. `temperature` is the field appended when
+ * temperatures are on, which is why it is separate from the always-shown ones.
+ */
 const CELLS = [
-    {caption: 'CPU', fields: ['cpu.usage:percent', 'cpu.temp:celsius']},
-    {caption: 'RAM', fields: ['memory.used:percent']},
-    {caption: 'GPU', fields: ['gpu.usage:percent', 'gpu.temp:celsius']},
-    {caption: 'NET', fields: ['net.rx:rateIn', 'net.tx:rateOut']},
+    {key: 'show-cpu', caption: 'CPU', fields: ['cpu.usage:percent'], temperature: 'cpu.temp:celsius'},
+    {key: 'show-memory', caption: 'RAM', fields: ['memory.used:percent']},
+    {key: 'show-gpu', caption: 'GPU', fields: ['gpu.usage:percent'], temperature: 'gpu.temp:celsius'},
+    {key: 'show-network', caption: 'NET', fields: ['net.rx:rateIn', 'net.tx:rateOut']},
 ];
 
-/** Dropdown rows, which carry what does not fit in the panel. */
+/** Dropdown rows. The menu always lists everything, whatever the panel shows. */
 const ROWS = [
     {title: 'Processor', field: 'cpu.usage:percent'},
     {title: 'Processor temperature', field: 'cpu.temp:celsius'},
@@ -39,24 +42,56 @@ const ROWS = [
 
 const FORMATTERS = {percent, celsius, rate, rateIn, rateOut};
 
-/** Captions are dimmed through the actor, because St implements only a subset
- * of CSS and its opacity handling is not dependable across themes. */
+/**
+ * Captions are dimmed through the actor, because St implements only a subset
+ * of CSS and its opacity handling is not dependable across themes.
+ */
 const CAPTION_OPACITY = 140;
 
 export const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
-    _init() {
+    _init(settings) {
         super._init(0.5, 'rldyour sysinfo', false);
 
-        // Every label that carries a value, keyed by its `path:formatter`
-        // descriptor. One flat map means updating is a single pass with no
-        // per-tick lookups into the widget tree.
+        this._settings = settings;
+        // Every label carrying a value, keyed by its `path:formatter`
+        // descriptor. One flat map makes an update a single pass with no
+        // lookups into the widget tree.
         this._fields = new Map();
+        this._panel = null;
+        this._client = null;
 
-        this.add_child(this._buildPanel());
+        this._changedId = settings.connect('changed', () => this._rebuild());
+        this._build();
+    }
+
+    _build() {
+        this._panel = this._buildPanel();
+        this.add_child(this._panel);
         this._buildMenu();
+        this._client = new Client(
+            this._settings.get_int('interval'),
+            sample => this._apply(sample),
+            connected => this._setConnected(connected));
+    }
 
-        this._client = new Client(sample => this._apply(sample), connected => this._setConnected(connected));
+    /**
+     * Settings changes are rare and touch both which cells exist and which
+     * cadence the daemon is asked for, so the whole indicator is rebuilt rather
+     * than patched in place. That keeps teardown in exactly one place.
+     */
+    _rebuild() {
+        this._teardown();
+        this._build();
+    }
+
+    _teardown() {
+        this._client.stop();
+        this._client = null;
+        this._panel.destroy();
+        this._panel = null;
+        this.menu.removeAll();
+        this._fields.clear();
     }
 
     _buildPanel() {
@@ -64,8 +99,12 @@ class Indicator extends PanelMenu.Button {
             styleClass: 'rldyour-panel',
             yAlign: Clutter.ActorAlign.CENTER,
         });
+        const temperatures = this._settings.get_boolean('show-temperatures');
 
         for (const cell of CELLS) {
+            if (!this._settings.get_boolean(cell.key))
+                continue;
+
             const box = new St.BoxLayout({
                 styleClass: 'rldyour-cell',
                 yAlign: Clutter.ActorAlign.CENTER,
@@ -76,8 +115,13 @@ class Indicator extends PanelMenu.Button {
                 yAlign: Clutter.ActorAlign.CENTER,
                 opacity: CAPTION_OPACITY,
             }));
-            for (const field of cell.fields)
+
+            const fields = [...cell.fields];
+            if (temperatures && cell.temperature !== undefined)
+                fields.push(cell.temperature);
+            for (const field of fields)
                 box.add_child(this._valueLabel(field, 'rldyour-value'));
+
             panel.add_child(box);
         }
 
@@ -142,9 +186,9 @@ class Indicator extends PanelMenu.Button {
     }
 
     destroy() {
-        this._client.stop();
-        this._client = null;
-        this._fields.clear();
+        this._settings.disconnect(this._changedId);
+        this._teardown();
+        this._settings = null;
         super.destroy();
     }
 });

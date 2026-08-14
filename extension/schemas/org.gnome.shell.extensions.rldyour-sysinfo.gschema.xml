@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.rldyour-sysinfo"
+          path="/org/gnome/shell/extensions/rldyour-sysinfo/">
+
+    <key name="interval" type="i">
+      <default>5</default>
+      <range min="1" max="60"/>
+      <summary>Seconds between readings</summary>
+      <description>
+        Requested from the daemon when the indicator connects. The daemon
+        serves the fastest cadence any connected client asks for.
+      </description>
+    </key>
+
+    <key name="show-cpu" type="b">
+      <default>true</default>
+      <summary>Show processor load in the panel</summary>
+    </key>
+
+    <key name="show-memory" type="b">
+      <default>true</default>
+      <summary>Show memory use in the panel</summary>
+    </key>
+
+    <key name="show-gpu" type="b">
+      <default>true</default>
+      <summary>Show graphics load in the panel</summary>
+    </key>
+
+    <key name="show-network" type="b">
+      <default>true</default>
+      <summary>Show network throughput in the panel</summary>
+    </key>
+
+    <key name="show-temperatures" type="b">
+      <default>true</default>
+      <summary>Show temperatures next to processor and graphics load</summary>
+    </key>
+
+  </schema>
+</schemalist>
