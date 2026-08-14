@@ -1,0 +1,10 @@
+[Unit]
+Description=rldyour-sysinfo metrics socket
+
+[Socket]
+# %t is the per-user runtime directory, which is tmpfs and cleaned on logout.
+ListenStream=%t/rldyour-sysinfo.sock
+SocketMode=0600
+
+[Install]
+WantedBy=sockets.target

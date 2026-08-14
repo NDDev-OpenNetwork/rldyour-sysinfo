@@ -1,0 +1,34 @@
+[Unit]
+Description=rldyour-sysinfo metrics daemon
+Requires=rldyour-sysinfod.socket
+After=rldyour-sysinfod.socket
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/rldyour-sysinfod
+Environment=RLDYOUR_SYSINFO_INTERVAL=5
+# One arena is enough for two threads that barely allocate, and it keeps glibc
+# from reserving per-thread heaps the daemon would never fill.
+Environment=MALLOC_ARENA_MAX=1
+
+# The daemon builds with panic = "abort", so any fault is a clean exit that
+# systemd turns into a fresh process rather than a half-live one.
+Restart=on-failure
+RestartSec=2
+
+# Only hardening a user manager can actually apply: anything that edits the
+# capability bounding set (ProtectKernelModules, ProtectControlGroups and their
+# kin) fails with 218/CAPABILITIES for an unprivileged manager.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+# Generous against the roughly twenty megabytes NVML maps, tight enough to stop
+# a leak from ever mattering.
+MemoryMax=128M
+
+[Install]
+WantedBy=default.target
