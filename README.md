@@ -4,6 +4,8 @@ System load in the GNOME top bar, immediately left of the clock: processor,
 memory, graphics, temperatures, disk and network — refreshed every five
 seconds, at a cost small enough to forget about.
 
+![The indicator in the top bar](docs/panel.png)
+
 ## Why it is two pieces
 
 The GNOME top bar can only be extended from inside `gnome-shell`, and that

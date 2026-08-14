@@ -43,3 +43,14 @@ export function rate(value) {
     const digits = unit > 0 && scaled < 10 ? 1 : 0;
     return `${scaled.toFixed(digits)}${RATE_UNITS[unit]}`;
 }
+
+/** Directional variants for the panel, where the caption cannot say which is
+ * which. Arrows, not emoji: the shell renders these in the panel font and they
+ * stay legible at the size a top bar actually uses. */
+export function rateIn(value) {
+    return `\u2193${rate(value)}`;
+}
+
+export function rateOut(value) {
+    return `\u2191${rate(value)}`;
+}

@@ -11,14 +11,14 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {Client} from './client.js';
-import {ABSENT, celsius, percent, rate} from './format.js';
+import {ABSENT, celsius, percent, rate, rateIn, rateOut} from './format.js';
 
 /** Panel cells, in display order: caption, then the keys it renders. */
 const CELLS = [
     {caption: 'CPU', fields: ['cpu.usage:percent', 'cpu.temp:celsius']},
     {caption: 'RAM', fields: ['memory.used:percent']},
     {caption: 'GPU', fields: ['gpu.usage:percent', 'gpu.temp:celsius']},
-    {caption: 'NET', fields: ['net.rx:rate', 'net.tx:rate']},
+    {caption: 'NET', fields: ['net.rx:rateIn', 'net.tx:rateOut']},
 ];
 
 /** Dropdown rows, which carry what does not fit in the panel. */
@@ -37,7 +37,7 @@ const ROWS = [
     {title: 'Network out', field: 'net.tx:rate'},
 ];
 
-const FORMATTERS = {percent, celsius, rate};
+const FORMATTERS = {percent, celsius, rate, rateIn, rateOut};
 
 /** Captions are dimmed through the actor, because St implements only a subset
  * of CSS and its opacity handling is not dependable across themes. */
