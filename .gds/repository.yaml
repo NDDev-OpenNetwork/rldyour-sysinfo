@@ -1,0 +1,41 @@
+schema_version: 1
+repository:
+  id: repo_01M0QNDKJHAP2DNES9XMCA4Q6V
+  display_name: rldyour-sysinfo
+  roles:
+  - project
+  lifecycle: active
+provider:
+  type: github
+  installation: installation:github-opennetwork
+  owner: NDDev-OpenNetwork
+  repository_id: 1333577156
+  name: rldyour-sysinfo
+classification:
+  portfolios:
+  - portfolio:opennetwork-projects
+  visibility_contract: public
+  data_classification: public
+product:
+  purpose: >-
+    Lightweight system monitor for the GNOME top bar: a Rust daemon feeding a
+    shell extension that renders system load left of the clock.
+policy:
+  profiles:
+  - repository-default
+  - organization-default
+  rollout_ring: standard
+git:
+  default_branch: main
+  integration: pull-request
+  branch_model: task-branches
+  handoff_pr: preferred
+  cleanup: merged-only
+agent:
+  context_profile: project-default
+  generated_agents: false
+  serena:
+    enabled: true
+    provenance_required: true
+release:
+  mode: none
