@@ -6,6 +6,10 @@ Low-overhead live system metrics from one Rust daemon on Linux, macOS and
 Windows. Linux has a GNOME Shell indicator, macOS has a native menu bar client,
 and every platform exposes the same versioned local JSON protocol.
 
+The protocol also has a dependency-free Python client published as
+`rldyour-sysinfo` on PyPI. The Rust daemon is published as
+`rldyour-sysinfod` on crates.io.
+
 ![The indicator in the top bar](docs/panel.png)
 
 ## Why it is two pieces
@@ -160,6 +164,9 @@ from "unsupported". `v` is incremented only on an incompatible change.
 
 Percentages are per cent, temperatures are degrees Celsius, disk and network
 figures are bytes per second.
+
+Python clients can use `pip install rldyour-sysinfo`; the command
+`rldyour-sysinfo --once` prints a single live sample from the local daemon.
 
 ## Checks
 

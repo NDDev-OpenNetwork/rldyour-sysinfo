@@ -1,2 +1,5 @@
 /daemon/target/
 /extension/schemas/gschemas.compiled
+/python/dist/
+/python/.pytest_cache/
+/python/**/__pycache__/

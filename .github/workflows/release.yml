@@ -89,8 +89,20 @@ jobs:
           name: windows
           path: dist/rldyour-sysinfo-*.zip
 
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python -m pip install build twine
+      - run: python -m build python
+      - run: python -m twine check python/dist/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python
+          path: python/dist/*
+
   publish:
-    needs: [linux, macos, windows]
+    needs: [linux, macos, windows, python]
     runs-on: ubuntu-latest
     permissions:
       contents: write
