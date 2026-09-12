@@ -73,6 +73,20 @@ with `--no-default-features`.
 
 Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS), 48, 49 or 50.
 
+Ubuntu amd64 can install the signed package repository:
+
+```sh
+curl -fsSL https://nddev-opennetwork.github.io/rldyour-sysinfo/apt/rldyour-sysinfo.asc \
+  | sudo tee /usr/share/keyrings/rldyour-sysinfo.asc >/dev/null
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rldyour-sysinfo.asc] https://nddev-opennetwork.github.io/rldyour-sysinfo/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/rldyour-sysinfo.list
+sudo apt update
+sudo apt install rldyour-sysinfo
+```
+
+The package installs the Rust daemon and its socket-activated user service.
+Install the GNOME indicator from the matching GitHub release asset.
+
 ```sh
 ./install.sh
 ```

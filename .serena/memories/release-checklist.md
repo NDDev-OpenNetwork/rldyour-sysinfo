@@ -12,6 +12,8 @@ Provenance: `.github/workflows`, installers, and local checks reviewed on
 7. Run `cargo publish --dry-run` and build/check both PyPI distributions.
 8. The tag workflow must produce Linux, GNOME, macOS, Windows, wheel, and
    source archives before publishing.
+9. Verify the signed APT repository with `apt update` and a clean package
+   installation before deploying it to GitHub Pages.
 
 GitHub Actions are pinned by full commit SHA. Re-check upstream release SHAs
 when changing an action rather than replacing pins with movable tags.

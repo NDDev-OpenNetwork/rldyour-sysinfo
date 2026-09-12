@@ -4,6 +4,7 @@
 
 - Publish the Rust daemon on crates.io and a dependency-free protocol client
   on PyPI.
+- Add a signed APT repository for Ubuntu amd64, hosted on GitHub Pages.
 
 - Add a native macOS collector for CPU, memory, Apple GPU, disk, network and SMC temperatures.
 - Add a native macOS menu bar client and per-user LaunchAgent installation.
