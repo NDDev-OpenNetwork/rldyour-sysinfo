@@ -3,6 +3,7 @@
   "name": "rldyour sysinfo",
   "description": "Shows CPU, memory, GPU, temperatures, disk and network activity in the top bar, left of the clock.\n\nReads everything from a companion daemon over a private socket, so the shell process itself does no polling and no parsing of kernel files.",
   "shell-version": [
+    "46",
     "48",
     "49",
     "50"
