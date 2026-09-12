@@ -18,8 +18,8 @@ classification:
   data_classification: public
 product:
   purpose: >-
-    Lightweight system monitor for the GNOME top bar: a Rust daemon feeding a
-    shell extension that renders system load left of the clock.
+    Low-overhead system monitor for Linux, macOS and Windows: a Rust metrics
+    daemon with native platform collectors and thin desktop clients.
 policy:
   profiles:
   - repository-default

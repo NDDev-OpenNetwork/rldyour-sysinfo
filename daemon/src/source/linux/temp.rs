@@ -1,4 +1,4 @@
-//! Temperatures from `sysfs` hwmon nodes.
+//! Linux temperatures from `sysfs` hwmon nodes.
 //!
 //! hwmon indices are assigned in probe order and are not stable across boots,
 //! so every sensor is resolved once by driver name at startup and then read

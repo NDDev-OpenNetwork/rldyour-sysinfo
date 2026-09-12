@@ -12,10 +12,13 @@ mod source;
 
 use collector::Collector;
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::process::ExitCode;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
+#[cfg(windows)]
+use uds_windows::{UnixListener, UnixStream};
 
 /// Publication cadence when nothing asks for another. Overridable through
 /// `RLDYOUR_SYSINFO_INTERVAL`, expressed in whole seconds.
@@ -98,6 +101,7 @@ fn run() -> std::io::Result<()> {
 /// Returns the listener and whether systemd owns it, which decides if the
 /// daemon is allowed to exit when idle.
 fn bind() -> std::io::Result<(UnixListener, bool)> {
+    #[cfg(target_os = "linux")]
     if inherited_socket() {
         use std::os::fd::FromRawFd;
         // SAFETY: systemd guarantees descriptor 3 is the listening socket it
@@ -105,10 +109,7 @@ fn bind() -> std::io::Result<(UnixListener, bool)> {
         return Ok((unsafe { UnixListener::from_raw_fd(3) }, true));
     }
 
-    let runtime = std::env::var_os("XDG_RUNTIME_DIR").ok_or_else(|| {
-        std::io::Error::other("XDG_RUNTIME_DIR is unset and no socket was inherited")
-    })?;
-    let path = std::path::Path::new(&runtime).join(SOCKET_NAME);
+    let path = socket_path()?;
 
     // A socket file left behind by an unclean exit would otherwise make the
     // bind fail with EADDRINUSE even though nothing is listening.
@@ -116,7 +117,38 @@ fn bind() -> std::io::Result<(UnixListener, bool)> {
     Ok((UnixListener::bind(path)?, false))
 }
 
+fn socket_path() -> std::io::Result<std::path::PathBuf> {
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+        return Ok(std::path::Path::new(&runtime).join(SOCKET_NAME));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home =
+            std::env::var_os("HOME").ok_or_else(|| std::io::Error::other("HOME is unset"))?;
+        let directory = std::path::Path::new(&home).join("Library/Caches/rldyour-sysinfo");
+        std::fs::create_dir_all(&directory)?;
+        return Ok(directory.join(SOCKET_NAME));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var_os("LOCALAPPDATA")
+            .or_else(|| std::env::var_os("TEMP"))
+            .ok_or_else(|| std::io::Error::other("LOCALAPPDATA and TEMP are unset"))?;
+        let directory = std::path::Path::new(&base).join("rldyour-sysinfo");
+        std::fs::create_dir_all(&directory)?;
+        return Ok(directory.join(SOCKET_NAME));
+    }
+
+    #[allow(unreachable_code)]
+    Err(std::io::Error::other(
+        "XDG_RUNTIME_DIR is unset and no socket was inherited",
+    ))
+}
+
 /// True when systemd passed a listening socket to this exact process.
+#[cfg(target_os = "linux")]
 fn inherited_socket() -> bool {
     let listening = std::env::var("LISTEN_FDS")
         .ok()

@@ -1,4 +1,4 @@
-//! Memory and swap pressure from `/proc/meminfo`.
+//! Linux memory and swap pressure from `/proc/meminfo`.
 
 use super::VirtualFile;
 use std::io;
