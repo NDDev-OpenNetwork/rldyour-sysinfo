@@ -1,4 +1,4 @@
-//! Physical interface throughput from `/proc/net/dev`.
+//! Linux physical interface throughput from `/proc/net/dev`.
 
 use super::{VirtualFile, delta, field, rate};
 use std::io;

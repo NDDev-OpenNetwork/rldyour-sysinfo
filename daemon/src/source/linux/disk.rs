@@ -1,4 +1,4 @@
-//! Whole-disk throughput from `/proc/diskstats`.
+//! Linux whole-disk throughput from `/proc/diskstats`.
 
 use super::{VirtualFile, delta, field, rate};
 use std::io;

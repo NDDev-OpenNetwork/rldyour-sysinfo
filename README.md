@@ -2,20 +2,22 @@
 
 [![CI](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml/badge.svg)](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml)
 
-System load in the GNOME top bar, immediately left of the clock: processor,
-memory, graphics, temperatures, disk and network — refreshed every five
-seconds, at a cost small enough to forget about.
+Low-overhead live system metrics from one Rust daemon on Linux, macOS and
+Windows. Linux has a GNOME Shell indicator, macOS has a native menu bar client,
+and every platform exposes the same versioned local JSON protocol.
+
+The protocol also has a dependency-free Python client published as
+`rldyour-sysinfo` on PyPI. The Rust daemon is published as
+`rldyour-sysinfod` on crates.io.
 
 ![The indicator in the top bar](docs/panel.png)
 
 ## Why it is two pieces
 
-The GNOME top bar can only be extended from inside `gnome-shell`, and that
-process runs JavaScript. Rust cannot be placed in the panel at all. So the
-panel widget is a GJS extension, and everything that costs anything — opening
-kernel files, parsing them, talking to the NVIDIA driver — lives in a separate
-Rust daemon. They speak over a private unix socket in the user's runtime
-directory.
+Platform UI processes stay deliberately thin. Collection, rate calculation and
+hardware access live in the Rust daemon; clients only decode one JSON line and
+render it. Linux and macOS use Unix domain sockets, while Windows uses its
+native AF_UNIX implementation available since Windows 10.
 
 The split is not only a workaround. Under Wayland the shell cannot be restarted
 without logging out, so any change to extension code costs a session. Keeping
@@ -29,9 +31,9 @@ daemon that restarts in milliseconds, is what makes the thing maintainable.
 - **No D-Bus stack.** `zbus` spawns a thread per connection and its own
   executor. For pushing under two hundred bytes every five seconds, a plain
   `UnixListener` from the standard library costs nothing and depends on nothing.
-- **No `sysinfo` crate.** It wants an explicit refresh per call and allocates a
-  full process list to answer questions this widget never asks. The daemon reads
-  `/proc` and `/sys` directly, into buffers it allocates once.
+- **No process scanning.** Linux reads `/proc` and `/sys` directly. macOS uses
+  Mach, BSD, IOKit, AppleSMC and IOHID. Windows refreshes system, component and network
+  counters without constructing a process list.
 - **No polling in the shell.** The cadence belongs to the daemon; the extension
   only waits on the next line. It runs no timer while connected, which also
   removes the most common cause of leaks in shell extensions.
@@ -52,7 +54,22 @@ megabytes of driver-side state. Set `RLDYOUR_SYSINFO_GPU=0` in the service
 environment, or build with `--no-default-features`, and that cost disappears
 along with the GPU readings.
 
-## Install
+## Platform support
+
+| Metric | Linux | macOS | Windows |
+|---|---|---|---|
+| CPU load | `/proc/stat` | Mach host statistics | Windows system counters |
+| CPU temperature | hwmon | AppleSMC / IOHID | hardware component provider |
+| Memory and swap | `/proc/meminfo` | Mach VM statistics | Windows memory counters |
+| GPU load, memory, temperature | NVIDIA NVML | IOAccelerator and AppleSMC / IOHID | NVIDIA NVML |
+| Disk throughput | `/proc/diskstats` | IOKit storage statistics | unavailable, reported as `null` |
+| Network throughput | `/proc/net/dev` | BSD interface counters | Windows network counters |
+
+Unsupported or unavailable hardware readings are always `null`. The daemon
+does not substitute estimates. NVIDIA metrics can be disabled at build time
+with `--no-default-features`.
+
+## Install on Linux
 
 Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS), 48, 49 or 50.
 
@@ -74,6 +91,37 @@ gnome-extensions enable rldyour-sysinfo@nddev-opennetwork
 
 To remove everything: `./uninstall.sh`.
 
+## Install on macOS
+
+Requires macOS 12 or newer, Rust 1.85 or newer and the Swift toolchain shipped
+with Xcode Command Line Tools.
+
+```sh
+./install-macos.sh
+```
+
+The installer builds the same Rust daemon with native Mach, BSD, IOKit and SMC
+readers, creates a small native menu bar app, and starts both with per-user
+LaunchAgents. It does not install or invoke a third-party monitor and needs no
+administrator privileges. Apple GPU load comes from IOAccelerator performance
+statistics; CPU and GPU temperatures come from read-only AppleSMC sensors with
+an IOHID temperature fallback on supported Apple silicon models.
+
+Remove it with `./uninstall-macos.sh`.
+
+## Install on Windows
+
+Requires Windows 10 or newer and Rust 1.85 or newer. Run PowerShell as the
+current desktop user:
+
+```powershell
+.\install-windows.ps1
+```
+
+This installs the daemon under `%LOCALAPPDATA%\rldyour-sysinfo` and starts it at
+login. Remove it with `.\uninstall-windows.ps1`. The Windows daemon publishes
+the same protocol; a native tray client is not part of version 0.2.0.
+
 ## Configuration
 
 Open the extension's preferences for what most people want to change:
@@ -85,8 +133,9 @@ Open the extension's preferences for what most people want to change:
   top bar, and whether temperatures are shown beside them. The dropdown always
   lists everything regardless.
 
-Two settings belong to the service itself, in
-`~/.config/systemd/user/rldyour-sysinfod.service`:
+The daemon accepts these environment variables. On Linux they can be placed in
+`~/.config/systemd/user/rldyour-sysinfod.service`; on macOS, add them to the
+daemon LaunchAgent's `EnvironmentVariables` dictionary.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -116,12 +165,16 @@ from "unsupported". `v` is incremented only on an incompatible change.
 Percentages are per cent, temperatures are degrees Celsius, disk and network
 figures are bytes per second.
 
+Python clients can use `pip install rldyour-sysinfo`; the command
+`rldyour-sysinfo --once` prints a single live sample from the local daemon.
+
 ## Checks
 
 ```sh
 ./scripts/check-extension.sh                      # what CI runs for the extension
 cd daemon && cargo test && cargo clippy --all-targets --all-features -- -D warnings
 cd extension && gjs -m tests/smoke.js             # needs the daemon reachable
+swiftc -typecheck macos/RldyourSysinfo.swift       # macOS menu client
 ```
 
 `scripts/check-extension.sh` covers syntax, metadata, the settings keys the code
@@ -132,6 +185,9 @@ Wayland gives no way to reload extension code without a new login.
 ## Licence
 
 AGPL-3.0-or-later.
+
+Low-level macOS API precedents and dependency licences are recorded in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 Note that this places the extension outside what extensions.gnome.org accepts:
 the portal requires every extension to be distributable under GPL-2.0-or-later,

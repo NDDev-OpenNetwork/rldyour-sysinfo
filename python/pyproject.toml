@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rldyour-sysinfo"
+version = "0.2.0"
+description = "Python client for the rldyour-sysinfo live metrics daemon"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "AGPL-3.0-or-later"
+authors = [{ name = "NDDev OpenNetwork" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows :: Windows 10",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/NDDev-OpenNetwork/rldyour-sysinfo"
+Repository = "https://github.com/NDDev-OpenNetwork/rldyour-sysinfo"
+Issues = "https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/issues"
+
+[project.scripts]
+rldyour-sysinfo = "rldyour_sysinfo:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rldyour_sysinfo"]

@@ -1,14 +1,27 @@
 [package]
 name = "rldyour-sysinfod"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "AGPL-3.0-or-later"
-description = "Resource-frugal system metrics daemon for the rldyour-sysinfo GNOME panel indicator"
+description = "Resource-frugal system metrics daemon for Linux, macOS, and Windows"
 repository = "https://github.com/NDDev-OpenNetwork/rldyour-sysinfo"
 
-[dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 nvml-wrapper = { version = "0.12.1", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+four-char-code = "0.0.5"
+iokit = "0.5.3"
+libc = "0.2"
+smc = "0.2.4"
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+cc = "1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+sysinfo = { version = "0.36.1", default-features = false, features = ["component", "network", "system"] }
+uds_windows = "1.2.1"
 
 [features]
 default = ["nvidia"]

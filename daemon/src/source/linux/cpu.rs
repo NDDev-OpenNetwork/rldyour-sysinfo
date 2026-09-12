@@ -1,4 +1,4 @@
-//! Aggregate CPU busy time from `/proc/stat`.
+//! Linux aggregate CPU busy time from `/proc/stat`.
 
 use super::{VirtualFile, delta};
 use std::io;

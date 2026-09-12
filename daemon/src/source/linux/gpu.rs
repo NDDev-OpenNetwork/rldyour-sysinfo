@@ -1,4 +1,4 @@
-//! NVIDIA GPU load, memory and temperature through NVML.
+//! Linux NVIDIA GPU load, memory and temperature through NVML.
 //!
 //! NVML is loaded once at startup: its initialiser resolves every symbol in
 //! the driver library, so repeating it per tick would dominate the cost of the
