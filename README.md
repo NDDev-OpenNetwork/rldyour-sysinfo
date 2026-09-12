@@ -54,7 +54,7 @@ along with the GPU readings.
 
 ## Install
 
-Requires a Rust toolchain and GNOME Shell 48 or newer.
+Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS), 48, 49 or 50.
 
 ```sh
 ./install.sh
