@@ -102,6 +102,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The ambient runner `python` is not deterministic — on Windows it can be
+      # a build without AF_UNIX, which the wire protocol depends on.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
       - run: cargo build --release --locked --manifest-path daemon/Cargo.toml
       - name: Serve and read the protocol (Linux)
         if: runner.os == 'Linux'
@@ -170,6 +175,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
       - name: Run the test suite
         shell: bash
         run: |
