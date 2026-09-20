@@ -32,25 +32,25 @@ impl Snapshot {
     pub fn encode(&self, out: &mut String) {
         out.clear();
         let _ = write!(out, r#"{{"v":{PROTOCOL_VERSION},"cpu":{{"usage":"#);
-        percent(out, self.cpu);
+        decimal(out, self.cpu);
         let _ = write!(out, r#","temp":"#);
-        percent(out, self.cpu_temperature);
+        decimal(out, self.cpu_temperature);
         let _ = write!(out, r#"}},"memory":{{"used":"#);
-        percent(out, self.memory);
+        decimal(out, self.memory);
         let _ = write!(out, r#","swap":"#);
-        percent(out, self.swap);
+        decimal(out, self.swap);
         let _ = write!(out, r#"}},"gpu":{{"usage":"#);
-        percent(out, self.gpu);
+        decimal(out, self.gpu);
         let _ = write!(out, r#","memory":"#);
-        percent(out, self.gpu_memory);
+        decimal(out, self.gpu_memory);
         let _ = write!(out, r#","temp":"#);
-        percent(out, self.gpu_temperature);
+        decimal(out, self.gpu_temperature);
         let _ = write!(out, r#"}},"disk":{{"read":"#);
         counter(out, self.disk_read);
         let _ = write!(out, r#","write":"#);
         counter(out, self.disk_write);
         let _ = write!(out, r#","temp":"#);
-        percent(out, self.disk_temperature);
+        decimal(out, self.disk_temperature);
         let _ = write!(out, r#"}},"net":{{"rx":"#);
         counter(out, self.net_rx);
         let _ = write!(out, r#","tx":"#);
@@ -60,7 +60,7 @@ impl Snapshot {
 }
 
 /// One decimal is the finest resolution a panel label can actually show.
-fn percent(out: &mut String, value: Option<f32>) {
+fn decimal(out: &mut String, value: Option<f32>) {
     match value {
         Some(value) if value.is_finite() => {
             let _ = write!(out, "{value:.1}");

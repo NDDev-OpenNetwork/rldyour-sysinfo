@@ -1,10 +1,19 @@
-//! Linux NVIDIA GPU load, memory and temperature through NVML.
+//! NVIDIA GPU load, memory and temperature through NVML.
 //!
-//! NVML is loaded once at startup: its initialiser resolves every symbol in
-//! the driver library, so repeating it per tick would dominate the cost of the
-//! whole sample. Absence of a driver is not an error — the daemon simply
-//! reports no GPU and every other metric keeps flowing.
+//! The proprietary NVIDIA driver publishes no utilisation or temperature
+//! through procfs, sysfs or an hwmon node, and exposes nothing comparable on
+//! Windows either, so NVML is the only interface that answers on both
+//! platforms. It is loaded once at startup: its initialiser resolves every
+//! symbol in the driver library, so repeating it per tick would dominate the
+//! cost of the whole sample.
+//!
+//! NVML is also the daemon's entire memory cost — roughly twenty megabytes of
+//! driver-side state against half a megabyte for everything else — which is
+//! why it stays one environment variable away and can be compiled out with
+//! `--no-default-features`. Absence of a driver is not an error: the daemon
+//! simply reports no GPU and every other metric keeps flowing.
 
+/// One reading off the primary adapter.
 pub struct Reading {
     /// Share of the sampling period the GPU was busy, in percent.
     pub usage: f32,
@@ -21,11 +30,6 @@ pub struct Gpu {
 #[cfg(feature = "nvidia")]
 impl Gpu {
     pub fn new() -> Self {
-        // NVML is the only interface that reports NVIDIA load: the proprietary
-        // driver publishes nothing but static identity under procfs and binds
-        // no hwmon node. It is also the daemon's entire memory cost — roughly
-        // twenty megabytes of driver-side state against half a megabyte for
-        // everything else — so it stays one environment variable away.
         if std::env::var_os("RLDYOUR_SYSINFO_GPU").is_some_and(|value| value == "0") {
             return Self { nvml: None };
         }
@@ -34,29 +38,26 @@ impl Gpu {
         }
     }
 
-    pub fn read(&mut self) -> Option<Reading> {
+    pub fn read(&self) -> Option<Reading> {
         use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 
-        let nvml = self.nvml.as_ref()?;
         // Cheap handle lookup against the already-initialised library; the
         // device cannot be cached because it borrows the NVML instance.
-        let device = nvml.device_by_index(0).ok()?;
-
+        let device = self.nvml.as_ref()?.device_by_index(0).ok()?;
         let usage = device.utilization_rates().ok()?.gpu as f32;
         let memory = device.memory_info().ok()?;
-        let memory = if memory.total == 0 {
-            0.0
-        } else {
-            memory.used as f32 * 100.0 / memory.total as f32
-        };
 
         Some(Reading {
             usage,
-            memory,
+            memory: if memory.total == 0 {
+                0.0
+            } else {
+                memory.used as f32 * 100.0 / memory.total as f32
+            },
             temperature: device
                 .temperature(TemperatureSensor::Gpu)
                 .ok()
-                .map(|t| t as f32),
+                .map(|value| value as f32),
         })
     }
 }
@@ -70,7 +71,7 @@ impl Gpu {
         Self
     }
 
-    pub fn read(&mut self) -> Option<Reading> {
+    pub fn read(&self) -> Option<Reading> {
         None
     }
 }

@@ -1,6 +1,7 @@
 //! Linux physical interface throughput from `/proc/net/dev`.
 
-use super::{VirtualFile, delta, field, rate};
+use super::{VirtualFile, field};
+use crate::source::{delta, rate};
 use std::io;
 
 pub struct Network {

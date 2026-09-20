@@ -1,6 +1,7 @@
 //! Windows collector using native system APIs through sysinfo and optional NVML.
 
 use crate::proto::Snapshot;
+use crate::source::nvidia::{Gpu, Reading as GpuReading};
 use std::io;
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
@@ -60,53 +61,5 @@ impl WindowsCollector {
             net_tx,
             ..Snapshot::default()
         }
-    }
-}
-
-struct GpuReading {
-    usage: f32,
-    memory: f32,
-    temperature: Option<f32>,
-}
-
-#[cfg(feature = "nvidia")]
-struct Gpu(Option<nvml_wrapper::Nvml>);
-
-#[cfg(feature = "nvidia")]
-impl Gpu {
-    fn new() -> Self {
-        Self(nvml_wrapper::Nvml::init().ok())
-    }
-
-    fn read(&self) -> Option<GpuReading> {
-        use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
-        let device = self.0.as_ref()?.device_by_index(0).ok()?;
-        let usage = device.utilization_rates().ok()?.gpu as f32;
-        let memory = device.memory_info().ok()?;
-        Some(GpuReading {
-            usage,
-            memory: if memory.total == 0 {
-                0.0
-            } else {
-                memory.used as f32 * 100.0 / memory.total as f32
-            },
-            temperature: device
-                .temperature(TemperatureSensor::Gpu)
-                .ok()
-                .map(|value| value as f32),
-        })
-    }
-}
-
-#[cfg(not(feature = "nvidia"))]
-struct Gpu;
-
-#[cfg(not(feature = "nvidia"))]
-impl Gpu {
-    fn new() -> Self {
-        Self
-    }
-    fn read(&self) -> Option<GpuReading> {
-        None
     }
 }

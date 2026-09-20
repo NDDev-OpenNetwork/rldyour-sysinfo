@@ -42,6 +42,33 @@ const ACCEPT_STACK: usize = 64 * 1024;
 const SOCKET_NAME: &str = "rldyour-sysinfo.sock";
 
 fn main() -> ExitCode {
+    match std::env::args().nth(1).as_deref() {
+        None => {}
+        Some("--version" | "-V") => {
+            println!("rldyour-sysinfod {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        Some("--help" | "-h") => {
+            println!(
+                "rldyour-sysinfod {} — system metrics daemon\n\
+                 \n\
+                 Publishes one newline-terminated JSON sample per interval to every\n\
+                 client connected to its local socket. No arguments are needed;\n\
+                 the socket location and cadence come from the environment.\n\
+                 \n\
+                 Environment:\n\
+                 \x20 RLDYOUR_SYSINFO_INTERVAL  Cadence in seconds when no client asks (default 5)\n\
+                 \x20 RLDYOUR_SYSINFO_GPU       Set to 0 to skip NVIDIA metrics entirely",
+                env!("CARGO_PKG_VERSION")
+            );
+            return ExitCode::SUCCESS;
+        }
+        Some(argument) => {
+            eprintln!("rldyour-sysinfod: unknown argument {argument:?}");
+            return ExitCode::FAILURE;
+        }
+    }
+
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -114,11 +141,29 @@ fn bind() -> std::io::Result<(UnixListener, bool)> {
     // A socket file left behind by an unclean exit would otherwise make the
     // bind fail with EADDRINUSE even though nothing is listening.
     let _ = std::fs::remove_file(&path);
-    Ok((UnixListener::bind(path)?, false))
+    let listener = UnixListener::bind(&path)?;
+
+    // systemd already delivers the socket at 0600; a self-bound one gets the
+    // same restriction explicitly rather than whatever the umask happens to be.
+    // Only the owner may connect to a socket that reports this host's metrics.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    Ok((listener, false))
 }
 
+/// The socket location follows each platform's own convention, and only that
+/// convention: honouring `XDG_RUNTIME_DIR` outside Linux would strand the
+/// clients, which look in the platform directory and nowhere else.
 fn socket_path() -> std::io::Result<std::path::PathBuf> {
-    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+    #[cfg(target_os = "linux")]
+    {
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").ok_or_else(|| {
+            std::io::Error::other("XDG_RUNTIME_DIR is unset and no socket was inherited")
+        })?;
         return Ok(std::path::Path::new(&runtime).join(SOCKET_NAME));
     }
 
@@ -142,9 +187,7 @@ fn socket_path() -> std::io::Result<std::path::PathBuf> {
     }
 
     #[allow(unreachable_code)]
-    Err(std::io::Error::other(
-        "XDG_RUNTIME_DIR is unset and no socket was inherited",
-    ))
+    Err(std::io::Error::other("no socket location on this platform"))
 }
 
 /// True when systemd passed a listening socket to this exact process.
@@ -167,8 +210,6 @@ fn interval() -> Duration {
         .map_or(DEFAULT_INTERVAL, Duration::from_secs)
 }
 
-/// Moves blocking accepts off the timing thread, so a connection arriving mid
-/// interval never delays the next sample.
 /// A connected client together with the cadence it asked for.
 struct Client {
     stream: UnixStream,
@@ -218,6 +259,8 @@ fn parse_interval(line: &str) -> Option<u64> {
         .then_some(seconds)
 }
 
+/// Moves blocking accepts off the timing thread, so a connection arriving mid
+/// interval never delays the next sample.
 fn accept_loop(listener: UnixListener) -> Receiver<Client> {
     let (sender, receiver) = mpsc::channel();
 

@@ -1,6 +1,7 @@
 //! macOS metrics from Mach, BSD, IOKit, and AppleSMC.
 
 use crate::proto::Snapshot;
+use crate::source::{delta, rate};
 use four_char_code::FourCharCode;
 use iokit::{CFValue, matching_services};
 use libc::{c_char, c_int, c_uint, c_void};
@@ -142,8 +143,8 @@ impl MacosCollector {
             .and_then(|current| {
                 let previous = self.network.replace(current)?;
                 Some((
-                    rate(current.rx.saturating_sub(previous.rx), seconds),
-                    rate(current.tx.saturating_sub(previous.tx), seconds),
+                    rate(delta(current.rx, previous.rx), seconds),
+                    rate(delta(current.tx, previous.tx), seconds),
                 ))
             })
             .map_or((None, None), |(rx, tx)| (Some(rx), Some(tx)));
@@ -152,8 +153,8 @@ impl MacosCollector {
             .and_then(|current| {
                 let previous = self.disk.replace(current)?;
                 Some((
-                    rate(current.read.saturating_sub(previous.read), seconds),
-                    rate(current.write.saturating_sub(previous.write), seconds),
+                    rate(delta(current.read, previous.read), seconds),
+                    rate(delta(current.write, previous.write), seconds),
                 ))
             })
             .map_or((None, None), |(read, write)| (Some(read), Some(write)));
@@ -374,13 +375,5 @@ fn sysctl_value<T>(name: &str, value: &mut T) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
-    }
-}
-
-fn rate(bytes: u64, seconds: f64) -> u64 {
-    if seconds <= 0.0 {
-        0
-    } else {
-        (bytes as f64 / seconds) as u64
     }
 }

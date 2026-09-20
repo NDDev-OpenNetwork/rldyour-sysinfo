@@ -2,15 +2,14 @@
 
 mod cpu;
 mod disk;
-mod gpu;
 mod mem;
 mod net;
 mod temp;
 
 use crate::proto::Snapshot;
+use crate::source::nvidia::Gpu;
 use cpu::Cpu;
 use disk::Disk;
-use gpu::Gpu;
 use mem::Memory;
 use net::Network;
 use std::fs::File;
@@ -104,29 +103,13 @@ pub fn field<T: std::str::FromStr>(line: &str, index: usize) -> Option<T> {
     line.split_ascii_whitespace().nth(index)?.parse().ok()
 }
 
-pub fn delta(current: u64, previous: u64) -> u64 {
-    current.saturating_sub(previous)
-}
-
-pub fn rate(bytes: u64, seconds: f64) -> u64 {
-    if seconds <= 0.0 {
-        0
-    } else {
-        (bytes as f64 / seconds) as u64
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn helpers_handle_counter_resets_and_zero_intervals() {
+    fn field_reads_the_nth_column() {
         let line = " 259 0 nvme0n1 2397597 508478 60721278 220367";
         assert_eq!(field::<u64>(line, 5), Some(60721278));
-        assert_eq!(delta(10, 4), 6);
-        assert_eq!(delta(4, 10), 0);
-        assert_eq!(rate(1024, 2.0), 512);
-        assert_eq!(rate(1024, 0.0), 0);
     }
 }

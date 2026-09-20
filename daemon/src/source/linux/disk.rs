@@ -1,6 +1,7 @@
 //! Linux whole-disk throughput from `/proc/diskstats`.
 
-use super::{VirtualFile, delta, field, rate};
+use super::{VirtualFile, field};
+use crate::source::{delta, rate};
 use std::io;
 
 /// The kernel reports disk transfers in fixed 512-byte units regardless of the
