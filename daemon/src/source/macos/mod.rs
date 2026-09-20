@@ -77,7 +77,9 @@ impl MetricsSource for MacosCollector {
     }
 }
 
-/// Mean of a set of sensor readings, or `None` when the set is empty.
-fn average(values: &[f32]) -> Option<f32> {
-    (!values.is_empty()).then(|| values.iter().sum::<f32>() / values.len() as f32)
+/// Mean of accumulated sensor readings, or `None` when nothing answered.
+/// Callers fold readings into a (sum, count) pair as they go, so a tick
+/// allocates nothing for temperature math.
+fn mean(sum: f64, count: usize) -> Option<f32> {
+    (count > 0).then(|| (sum / count as f64) as f32)
 }

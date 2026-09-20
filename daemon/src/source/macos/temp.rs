@@ -6,7 +6,7 @@
 //! `TGDD` are graphics, `TH*` is storage. A machine that reports none simply
 //! yields `null`.
 
-use super::average;
+use super::mean;
 use four_char_code::FourCharCode;
 
 unsafe extern "C" {
@@ -50,13 +50,12 @@ impl Temperatures {
 
     fn average(&self, keys: &[FourCharCode]) -> Option<f32> {
         let smc = self.smc.as_ref()?;
-        let values: Vec<f32> = keys
+        let (sum, count) = keys
             .iter()
             .filter_map(|key| smc.temperature(*key).ok())
             .filter(|value| (10.0..=120.0).contains(value))
-            .map(|value| value as f32)
-            .collect();
-        average(&values)
+            .fold((0.0, 0), |(sum, count), value| (sum + value, count + 1));
+        mean(sum, count)
     }
 }
 

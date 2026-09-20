@@ -1,6 +1,6 @@
 //! macOS GPU utilisation and temperature from IOAccelerator statistics.
 
-use super::average;
+use super::mean;
 use iokit::{CFValue, matching_services};
 
 /// The accelerator's own report. Either field may be absent: virtual machines
@@ -19,10 +19,12 @@ impl Gpu {
         Self
     }
 
-    /// Averages across every accelerator the registry reports.
+    /// Averages across every accelerator the registry reports. Readings are
+    /// accumulated as (sum, count) pairs rather than collected, so a tick
+    /// allocates nothing beyond what IOKit itself needs.
     pub fn read(&self) -> Reading {
-        let mut usages = Vec::new();
-        let mut temperatures = Vec::new();
+        let mut usages = (0.0, 0);
+        let mut temperatures = (0.0, 0);
 
         if let Ok(services) = matching_services("IOAccelerator") {
             for service in services {
@@ -33,21 +35,23 @@ impl Gpu {
                 };
                 for key in ["Device Utilization %", "GPU Activity(%)"] {
                     if let Some(CFValue::Integer(value)) = stats.get(key) {
-                        usages.push((*value).clamp(0, 100) as f32);
+                        usages.0 += (*value).clamp(0, 100) as f64;
+                        usages.1 += 1;
                         break;
                     }
                 }
                 if let Some(CFValue::Integer(value)) = stats.get("Temperature(C)") {
                     if (1..=120).contains(value) {
-                        temperatures.push(*value as f32);
+                        temperatures.0 += *value as f64;
+                        temperatures.1 += 1;
                     }
                 }
             }
         }
 
         Reading {
-            usage: average(&usages),
-            temperature: average(&temperatures),
+            usage: mean(usages.0, usages.1),
+            temperature: mean(temperatures.0, temperatures.1),
         }
     }
 }

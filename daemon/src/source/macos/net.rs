@@ -57,9 +57,11 @@ fn read_counters() -> io::Result<Sample> {
             && unsafe { (*item.ifa_addr).sa_family as c_int } == libc::AF_LINK
             && !item.ifa_data.is_null()
         {
-            let name = unsafe { CStr::from_ptr(item.ifa_name as *const c_char) }.to_string_lossy();
+            let name = unsafe { CStr::from_ptr(item.ifa_name as *const c_char) };
             let flags = item.ifa_flags as c_int;
-            if name.starts_with("en") && flags & libc::IFF_UP != 0 {
+            // Byte compare: interface names are ASCII, and the filter runs per
+            // interface per tick — no reason to allocate a String for it.
+            if name.to_bytes().starts_with(b"en") && flags & libc::IFF_UP != 0 {
                 let data = unsafe { &*(item.ifa_data as *const libc::if_data) };
                 sample.received = sample.received.saturating_add(data.ifi_ibytes as u64);
                 sample.transmitted = sample.transmitted.saturating_add(data.ifi_obytes as u64);

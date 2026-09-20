@@ -63,8 +63,10 @@ impl Network {
         let mut transmitted = 0u64;
         let mut found = false;
         for (name, data) in self.networks.iter() {
-            let name = name.to_lowercase();
-            if VIRTUAL_ADAPTERS.iter().any(|marker| name.contains(marker)) {
+            if VIRTUAL_ADAPTERS
+                .iter()
+                .any(|marker| contains_marker(name, marker))
+            {
                 continue;
             }
             received = received.saturating_add(data.total_received());
@@ -82,5 +84,30 @@ impl Network {
             rx: rate(delta(received, previous.received), seconds),
             tx: rate(delta(transmitted, previous.transmitted), seconds),
         })
+    }
+}
+
+/// ASCII-insensitive substring test, so classifying an adapter costs no
+/// lowercase copy on every tick. The markers are all ASCII, which is all this
+/// needs to fold.
+fn contains_marker(name: &str, marker: &str) -> bool {
+    name.as_bytes()
+        .windows(marker.len())
+        .any(|window| window.eq_ignore_ascii_case(marker.as_bytes()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adapter_names_match_case_insensitively() {
+        assert!(contains_marker("Tailscale Tunnel", "tailscale"));
+        assert!(contains_marker(
+            "Hyper-V Virtual Ethernet Adapter",
+            "hyper-v"
+        ));
+        assert!(!contains_marker("Intel Ethernet Controller", "vmware"));
+        assert!(!contains_marker("Wi-Fi", "wsl"));
     }
 }
