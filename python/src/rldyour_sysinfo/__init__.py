@@ -87,6 +87,10 @@ def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> It
     """
     if not 0 <= interval <= 60:
         raise ValueError("interval must be between 0 (realtime) and 60 seconds")
+    # CPython on Windows does not build socket.AF_UNIX, even though the OS
+    # itself speaks it; fail with the reason rather than an AttributeError.
+    if not hasattr(socket, "AF_UNIX"):
+        raise RuntimeError("this Python build has no AF_UNIX support")
     with socket.socket(socket.AF_UNIX) as connection:
         connection.connect(str(Path(path) if path is not None else socket_path()))
         connection.sendall(json.dumps({"interval": interval}).encode() + b"\n")
