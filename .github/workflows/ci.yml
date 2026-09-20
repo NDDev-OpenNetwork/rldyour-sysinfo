@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         working-directory: .
         run: |
-          foreach ($file in "install-windows.ps1", "uninstall-windows.ps1") {
+          foreach ($file in "install-windows.ps1", "uninstall-windows.ps1", "scripts/e2e-sample.ps1") {
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errors)
             if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
@@ -102,9 +102,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # The ambient runner `python` is not deterministic — on Windows it can be
-      # a build without AF_UNIX, which the wire protocol depends on.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # Windows exercises the socket through .NET instead — CPython does not
+      # build AF_UNIX there. Elsewhere a pinned interpreter keeps the venv
+      # deterministic.
+      - if: runner.os != 'Windows'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
       - run: cargo build --release --locked --manifest-path daemon/Cargo.toml
@@ -140,10 +142,8 @@ jobs:
         run: |
           $daemon = Start-Process -PassThru -WindowStyle Hidden daemon/target/release/rldyour-sysinfod.exe
           try {
-            python -m venv "$env:TEMP\e2e"
-            & "$env:TEMP\e2e\Scripts\python.exe" -m pip install ./python
             Start-Sleep -Seconds 1
-            & "$env:TEMP\e2e\Scripts\python.exe" scripts/e2e-sample.py
+            ./scripts/e2e-sample.ps1
           } finally {
             Stop-Process -Id $daemon.Id -Force -ErrorAction SilentlyContinue
           }
