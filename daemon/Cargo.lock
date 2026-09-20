@@ -138,6 +138,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "four-char-code"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42da99970737c0150e3c5cd1cdc510735a2511739f5c3aa3c6bfc9f31441488d"
+
+[[package]]
 name = "four-char-code-macros-impl"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -356,7 +362,7 @@ name = "rldyour-sysinfod"
 version = "0.2.1"
 dependencies = [
  "cc",
- "four-char-code",
+ "four-char-code 2.3.0",
  "iokit",
  "libc",
  "nvml-wrapper",
@@ -390,7 +396,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7128ad1af3dd7a47c5fa97b4dc570df098eda12cc63364c38e0e44e4987359b6"
 dependencies = [
- "four-char-code",
+ "four-char-code 0.0.5",
  "lazy_static",
  "libc",
 ]
