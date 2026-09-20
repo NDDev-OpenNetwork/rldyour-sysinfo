@@ -1,11 +1,13 @@
 # Release checklist
 
 Provenance: `.github/workflows`, installers, and local checks reviewed on
-2026-09-12.
+2026-09-20.
 
 1. Keep `daemon/Cargo.toml`, `Cargo.lock`, `CHANGELOG.md`, and the tag version aligned.
 2. Run `cargo fmt --check`, Clippy with warnings denied, and tests.
-3. Check the Windows target and type-check the macOS menu client.
+3. Check the Windows target; CI compiles the macOS menu client with
+   `swiftc -O -framework AppKit` (package-internal APIs like `clamped(to:)`
+   only fail there, not in docs).
 4. Run `scripts/check-extension.sh` on Linux with `glib-compile-schemas` available.
 5. Reinstall on the current macOS device and inspect at least two live protocol samples.
 6. Push through a pull request; tag only the merged commit.
