@@ -7,6 +7,7 @@ mod net;
 mod temp;
 
 use crate::proto::Snapshot;
+use crate::source::MetricsSource;
 use crate::source::nvidia::Gpu;
 use cpu::Cpu;
 use disk::Disk;
@@ -29,8 +30,8 @@ pub struct LinuxCollector {
     sampled_at: Instant,
 }
 
-impl LinuxCollector {
-    pub fn new() -> io::Result<Self> {
+impl MetricsSource for LinuxCollector {
+    fn new() -> io::Result<Self> {
         Ok(Self {
             cpu: Cpu::new()?,
             memory: Memory::new()?,
@@ -43,7 +44,7 @@ impl LinuxCollector {
         })
     }
 
-    pub fn sample(&mut self) -> Snapshot {
+    fn sample(&mut self) -> Snapshot {
         let now = Instant::now();
         let seconds = now.duration_since(self.sampled_at).as_secs_f64();
         self.sampled_at = now;
@@ -78,20 +79,22 @@ fn read_sensor(sensor: Option<&mut Sensor>) -> Option<f32> {
     sensor?.celsius().ok().flatten()
 }
 
-pub struct VirtualFile {
+/// A procfs or sysfs file held open across samples. `read` rewinds and
+/// returns the fresh contents without reallocating the buffer.
+struct VirtualFile {
     file: File,
     buf: String,
 }
 
 impl VirtualFile {
-    pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
+    fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         Ok(Self {
             file: File::open(path)?,
             buf: String::with_capacity(4096),
         })
     }
 
-    pub fn read(&mut self) -> io::Result<&str> {
+    fn read(&mut self) -> io::Result<&str> {
         self.file.seek(SeekFrom::Start(0))?;
         self.buf.clear();
         self.file.read_to_string(&mut self.buf)?;
@@ -99,7 +102,8 @@ impl VirtualFile {
     }
 }
 
-pub fn field<T: std::str::FromStr>(line: &str, index: usize) -> Option<T> {
+/// The Nth whitespace-separated field of a procfs line, parsed.
+fn field<T: std::str::FromStr>(line: &str, index: usize) -> Option<T> {
     line.split_ascii_whitespace().nth(index)?.parse().ok()
 }
 

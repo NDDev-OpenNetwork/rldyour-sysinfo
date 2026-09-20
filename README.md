@@ -62,8 +62,13 @@ along with the GPU readings.
 | CPU temperature | hwmon | AppleSMC / IOHID | hardware component provider |
 | Memory and swap | `/proc/meminfo` | Mach VM statistics | Windows memory counters |
 | GPU load, memory, temperature | NVIDIA NVML | IOAccelerator and AppleSMC / IOHID | NVIDIA NVML |
-| Disk throughput | `/proc/diskstats` | IOKit storage statistics | unavailable, reported as `null` |
+| Disk throughput | `/proc/diskstats` | IOKit storage statistics | Windows volume counters |
 | Network throughput | `/proc/net/dev` | BSD interface counters | Windows network counters |
+
+Throughput counts bytes per second on interfaces and devices the OS considers
+physical: Linux follows real `/sys` device nodes, macOS counts up `en*`
+interfaces, and Windows excludes the loopback, tunnel, VPN, and hypervisor
+adapters it can identify by name.
 
 Unsupported or unavailable hardware readings are always `null`. The daemon
 does not substitute estimates. NVIDIA metrics can be disabled at build time

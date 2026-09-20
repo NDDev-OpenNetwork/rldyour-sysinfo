@@ -1,4 +1,9 @@
 //! Native metric collectors selected at compile time.
+//!
+//! Every platform directory holds the same set of per-domain readers —
+//! `cpu`, `mem`, `disk`, `net`, `temp` — assembled by its `mod.rs` into one
+//! `MetricsSource`. NVIDIA readings live in `nvidia`, shared by the two
+//! platforms where that driver exists.
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -8,7 +13,7 @@ mod macos;
 mod windows;
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
-pub(crate) mod nvidia;
+mod nvidia;
 
 #[cfg(target_os = "linux")]
 pub use linux::LinuxCollector as PlatformCollector;
@@ -20,19 +25,37 @@ pub use windows::WindowsCollector as PlatformCollector;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 compile_error!("rldyour-sysinfod supports Linux, macOS, and Windows");
 
+use crate::proto::Snapshot;
+use std::io;
+
+/// The contract every platform collector fulfils: build once at daemon start,
+/// then produce one snapshot per tick. Implementing it through this trait is
+/// what keeps the three backends in lockstep — a missing or mistyped method
+/// fails the build rather than drifting silently.
+pub(crate) trait MetricsSource {
+    fn new() -> io::Result<Self>
+    where
+        Self: Sized;
+    fn sample(&mut self) -> Snapshot;
+}
+
+// Compile-time proof that the selected platform honours the contract.
+const _: fn() = || {
+    fn contract<T: MetricsSource>() {}
+    contract::<PlatformCollector>();
+};
+
 /// A counter difference that treats a reset as zero.
 ///
 /// Kernel counters only ever move forward, but a hot-unplugged device or a
 /// 32-bit wraparound can make the new reading smaller; saturating keeps a
 /// reset from becoming a huge false spike.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-pub(crate) fn delta(current: u64, previous: u64) -> u64 {
+fn delta(current: u64, previous: u64) -> u64 {
     current.saturating_sub(previous)
 }
 
 /// Bytes per second over a real elapsed interval.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-pub(crate) fn rate(bytes: u64, seconds: f64) -> u64 {
+fn rate(bytes: u64, seconds: f64) -> u64 {
     if seconds <= 0.0 {
         0
     } else {

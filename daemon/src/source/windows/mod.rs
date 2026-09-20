@@ -1,65 +1,75 @@
-//! Windows collector using native system APIs through sysinfo and optional NVML.
+//! Windows collector backed by system counters through sysinfo and optional
+//! NVML.
+
+mod cpu;
+mod disk;
+mod mem;
+mod net;
+mod temp;
 
 use crate::proto::Snapshot;
-use crate::source::nvidia::{Gpu, Reading as GpuReading};
+use crate::source::MetricsSource;
+use crate::source::nvidia::Gpu;
+use cpu::Cpu;
+use disk::Disk;
+use mem::Memory;
+use net::Network;
 use std::io;
-use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
+use std::time::Instant;
+use temp::Temperatures;
 
 pub struct WindowsCollector {
-    system: System,
-    networks: Networks,
-    components: Components,
+    cpu: Cpu,
+    memory: Memory,
+    disk: Disk,
+    network: Network,
     gpu: Gpu,
+    temperatures: Temperatures,
+    sampled_at: Instant,
 }
 
-impl WindowsCollector {
-    pub fn new() -> io::Result<Self> {
-        let system = System::new_with_specifics(
-            RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::everything())
-                .with_memory(MemoryRefreshKind::everything()),
-        );
+impl MetricsSource for WindowsCollector {
+    fn new() -> io::Result<Self> {
         Ok(Self {
-            system,
-            networks: Networks::new_with_refreshed_list(),
-            components: Components::new_with_refreshed_list(),
+            cpu: Cpu::new(),
+            memory: Memory::new(),
+            disk: Disk::new(),
+            network: Network::new(),
             gpu: Gpu::new(),
+            temperatures: Temperatures::new(),
+            sampled_at: Instant::now(),
         })
     }
 
-    pub fn sample(&mut self) -> Snapshot {
-        self.system.refresh_cpu_usage();
-        self.system.refresh_memory();
-        self.networks.refresh(true);
-        self.components.refresh(false);
+    fn sample(&mut self) -> Snapshot {
+        let now = Instant::now();
+        let seconds = now.duration_since(self.sampled_at).as_secs_f64();
+        self.sampled_at = now;
 
-        let total_memory = self.system.total_memory();
-        let memory = (total_memory > 0)
-            .then(|| self.system.used_memory() as f32 * 100.0 / total_memory as f32);
-        let total_swap = self.system.total_swap();
-        let swap =
-            (total_swap > 0).then(|| self.system.used_swap() as f32 * 100.0 / total_swap as f32);
-        let net_rx = Some(self.networks.values().map(|data| data.received()).sum());
-        let net_tx = Some(self.networks.values().map(|data| data.transmitted()).sum());
-        let cpu_temperature = self
-            .components
-            .iter()
-            .filter_map(|component| component.temperature())
-            .filter(|temperature| temperature.is_finite() && (0.0..=120.0).contains(temperature))
-            .max_by(f32::total_cmp);
-        let gpu = self.gpu.read();
-
-        Snapshot {
-            cpu: Some(self.system.global_cpu_usage()),
-            cpu_temperature,
-            memory,
-            swap,
-            gpu: gpu.as_ref().map(|reading| reading.usage),
-            gpu_memory: gpu.as_ref().map(|reading| reading.memory),
-            gpu_temperature: gpu.and_then(|reading| reading.temperature),
-            net_rx,
-            net_tx,
+        let mut snapshot = Snapshot {
+            cpu: Some(self.cpu.usage()),
             ..Snapshot::default()
+        };
+        if let Some(usage) = self.memory.usage() {
+            snapshot.memory = Some(usage.used);
+            snapshot.swap = usage.swap;
         }
+        if let Some(throughput) = self.disk.throughput(seconds) {
+            snapshot.disk_read = Some(throughput.read);
+            snapshot.disk_write = Some(throughput.write);
+        }
+        if let Some(throughput) = self.network.throughput(seconds) {
+            snapshot.net_rx = Some(throughput.rx);
+            snapshot.net_tx = Some(throughput.tx);
+        }
+        if let Some(reading) = self.gpu.read() {
+            snapshot.gpu = Some(reading.usage);
+            snapshot.gpu_memory = Some(reading.memory);
+            snapshot.gpu_temperature = reading.temperature;
+        }
+        self.temperatures.refresh();
+        snapshot.cpu_temperature = self.temperatures.cpu();
+        snapshot.disk_temperature = self.temperatures.disk();
+        snapshot
     }
 }
