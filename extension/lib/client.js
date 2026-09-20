@@ -21,7 +21,7 @@ const MAX_LINE = 4096;
  */
 export class Client {
     /**
-     * @param {number} interval seconds between readings to ask the daemon for
+     * @param {number} interval seconds between readings to ask for; 0 is realtime
      * @param {(sample: object) => void} onSample called for each decoded line
      * @param {(connected: boolean) => void} onState called when the link changes
      */
