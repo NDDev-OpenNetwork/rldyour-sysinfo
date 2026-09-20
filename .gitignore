@@ -3,3 +3,6 @@
 /python/dist/
 /python/.pytest_cache/
 /python/**/__pycache__/
+/dist/
+/site/
+/package/

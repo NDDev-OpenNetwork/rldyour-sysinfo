@@ -15,6 +15,11 @@ def test_decode_rejects_unknown_shape():
         _decode(b'{"v":2}')
 
 
+def test_decode_accepts_extra_fields_within_v1():
+    value = {"v": 1, "cpu": {}, "memory": {}, "gpu": {}, "disk": {}, "net": {}, "uptime": 42}
+    assert _decode(json.dumps(value).encode()) == value
+
+
 def test_interval_is_bounded_before_connecting():
     with pytest.raises(ValueError):
         next(samples(0))

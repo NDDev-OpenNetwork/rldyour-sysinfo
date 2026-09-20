@@ -110,6 +110,10 @@ export class Client {
             // it keeps the indicator on its last good reading.
             return;
         }
+        // The version byte is the protocol contract: anything else is a
+        // different daemon or a future format this client cannot read.
+        if (sample?.v !== 1)
+            return;
         this._onSample(sample);
     }
 

@@ -16,7 +16,7 @@ import {ABSENT, celsius, percent, rate} from '../lib/format.js';
 
 let failures = 0;
 function check(actual, expected, label) {
-    if (actual !== expected) { print(`  ✗ ${label}: получено "${actual}", ожидалось "${expected}"`); failures++; }
+    if (actual !== expected) { print(`  ✗ ${label}: got "${actual}", expected "${expected}"`); failures++; }
     else print(`  ✓ ${label} = ${actual}`);
 }
 
@@ -30,7 +30,7 @@ check(rate(342578), '335K', 'rate(342578)');
 check(rate(2 * 1024 * 1024 * 1024), '2.0G', 'rate(2GiB)');
 check(rate(null), ABSENT, 'rate(null)');
 
-print('\n=== client против живого демона ===');
+print('\n=== client against a live daemon ===');
 const loop = GLib.MainLoop.new(null, false);
 let samples = 0;
 
@@ -41,13 +41,13 @@ const client = new Client(REQUESTED_INTERVAL, sample => {
           `ram=${percent(sample.memory.used)} gpu=${percent(sample.gpu.usage)}/${celsius(sample.gpu.temp)} ` +
           `net=↓${rate(sample.net.rx)} ↑${rate(sample.net.tx)}`);
     if (samples >= 2) { client.stop(); loop.quit(); }
-}, connected => print(`  соединение: ${connected ? 'установлено' : 'потеряно'}`));
+}, connected => print(`  connection: ${connected ? 'up' : 'lost'}`));
 
 GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 25, () => {
-    print('  ✗ таймаут — данные не пришли'); failures++; client.stop(); loop.quit();
+    print('  ✗ timed out waiting for samples'); failures++; client.stop(); loop.quit();
     return GLib.SOURCE_REMOVE;
 });
 
 loop.run();
-print(`\nитог: ${failures === 0 ? 'ВСЁ ЗЕЛЁНОЕ' : failures + ' провал(ов)'}`);
+print(`\nresult: ${failures === 0 ? 'all green' : failures + ' failure(s)'}`);
 if (failures > 0) imports.system.exit(1);

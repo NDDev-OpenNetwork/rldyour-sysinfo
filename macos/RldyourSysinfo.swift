@@ -1,6 +1,14 @@
 import AppKit
 import Foundation
 
+/// Seconds between samples requested from the daemon — the same default the
+/// GNOME extension's schema ships.
+private let requestedInterval = 5
+/// Reconnect backoff, kept identical to the extension client.
+private let reconnectSeconds = 5.0
+/// Shown wherever the host cannot supply a metric.
+private let absent = "—"
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
@@ -11,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         statusItem.button?.title = "SYS …"
         for title in ["Processor", "Processor temperature", "Memory", "Swap", "Graphics", "Graphics memory", "Graphics temperature", "Disk read", "Disk write", "Disk temperature", "Network in", "Network out"] {
-            let item = NSMenuItem(title: "\(title): —", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: "\(title): \(absent)", action: nil, keyEquivalent: "")
             rows[title] = item
             menu.addItem(item)
         }
@@ -30,8 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func connect() {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self, !self.stopped else { return }
-            let socket = Foundation.SocketPort()
-            _ = socket
             let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
             guard fd >= 0 else { return self.retry() }
             defer { Darwin.close(fd) }
@@ -51,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             guard connected == 0 else { return self.retry() }
-            _ = "{\"interval\":2}\n".withCString { Darwin.write(fd, $0, strlen($0)) }
+            _ = "{\"interval\":\(requestedInterval)}\n".withCString { Darwin.write(fd, $0, strlen($0)) }
 
             let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
             var buffer = Data()
@@ -61,9 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 while let newline = buffer.firstIndex(of: 10) {
                     let line = buffer[..<newline]
                     buffer.removeSubrange(...newline)
-                    if let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] {
-                        DispatchQueue.main.async { self.apply(object) }
-                    }
+                    guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+                          // The version byte is the protocol contract: anything
+                          // else is a different daemon or a future format.
+                          (object["v"] as? Int) == 1 else { continue }
+                    DispatchQueue.main.async { self.apply(object) }
                 }
             }
             self.retry()
@@ -72,8 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func retry() {
         guard !stopped else { return }
-        DispatchQueue.main.async { self.statusItem.button?.title = "SYS offline" }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 3) { self.connect() }
+        DispatchQueue.main.async {
+            self.statusItem.button?.title = "SYS offline"
+            for title in self.rows.keys { self.set(title, absent) }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + reconnectSeconds) { self.connect() }
     }
 
     private func apply(_ sample: [String: Any]) {
@@ -102,14 +113,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 private func dictionary(_ value: [String: Any], _ key: String) -> [String: Any] { value[key] as? [String: Any] ?? [:] }
 private func number(_ value: Any?) -> Double? { (value as? NSNumber)?.doubleValue }
-private func percent(_ value: Any?) -> String { number(value).map { String(format: "%.1f%%", $0) } ?? "—" }
-private func temperature(_ value: Any?) -> String { number(value).map { String(format: "%.1f°C", $0) } ?? "—" }
+private func percent(_ value: Any?) -> String { number(value).map { "\(Int($0.rounded()))%" } ?? absent }
+private func temperature(_ value: Any?) -> String { number(value).map { "\(Int($0.rounded()))°" } ?? absent }
+/// Same shape as the extension's formatter: binary units, one fractional
+/// digit only while the mantissa is small enough to carry information.
 private func rate(_ value: Any?) -> String {
-    guard var amount = number(value) else { return "—" }
-    let units = ["B/s", "KB/s", "MB/s", "GB/s"]
+    guard var amount = number(value) else { return absent }
+    let units = ["B", "K", "M", "G", "T"]
     var unit = 0
-    while amount >= 1000 && unit < units.count - 1 { amount /= 1000; unit += 1 }
-    return String(format: amount >= 100 ? "%.0f %@" : "%.1f %@", amount, units[unit])
+    while amount >= 1024 && unit < units.count - 1 { amount /= 1024; unit += 1 }
+    let digits = unit > 0 && amount < 10 ? 1 : 0
+    return "\(String(format: "%.*f", digits, amount))\(units[unit])"
 }
 
 let app = NSApplication.shared

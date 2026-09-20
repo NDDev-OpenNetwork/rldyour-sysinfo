@@ -35,6 +35,8 @@ say "Installing the extension into ${EXT_DIR}"
 rm -rf "${EXT_DIR}"
 mkdir -p "${EXT_DIR}"
 cp -r "${ROOT}/extension/." "${EXT_DIR}/"
+# The extension payload matches the released zip: tests stay in the repo.
+rm -rf "${EXT_DIR}/tests"
 # The shell reads the compiled binary form, never the XML source.
 glib-compile-schemas "${EXT_DIR}/schemas"
 

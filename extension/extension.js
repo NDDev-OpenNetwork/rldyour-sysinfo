@@ -19,7 +19,9 @@ export default class SysinfoExtension extends Extension {
     }
 
     disable() {
-        this._indicator.destroy();
+        // The shell may call disable without a completed enable — when a
+        // lock screen interrupts startup, for instance.
+        this._indicator?.destroy();
         this._indicator = null;
     }
 }

@@ -14,18 +14,40 @@ from typing import Any, TypedDict
 __version__ = "0.2.0"
 
 
-class Pair(TypedDict):
+class Cpu(TypedDict):
     usage: float | None
     temp: float | None
 
 
+class Memory(TypedDict):
+    used: float | None
+    swap: float | None
+
+
+class Gpu(TypedDict):
+    usage: float | None
+    memory: float | None
+    temp: float | None
+
+
+class Disk(TypedDict):
+    read: int | None
+    write: int | None
+    temp: float | None
+
+
+class Net(TypedDict):
+    rx: int | None
+    tx: int | None
+
+
 class Sample(TypedDict):
     v: int
-    cpu: dict[str, float | None]
-    memory: dict[str, float | None]
-    gpu: dict[str, float | None]
-    disk: dict[str, float | None]
-    net: dict[str, float | None]
+    cpu: Cpu
+    memory: Memory
+    gpu: Gpu
+    disk: Disk
+    net: Net
 
 
 def socket_path() -> Path:
@@ -46,12 +68,14 @@ def socket_path() -> Path:
 def _decode(line: bytes) -> Sample:
     value: Any = json.loads(line)
     required = {"v", "cpu", "memory", "gpu", "disk", "net"}
-    if not isinstance(value, dict) or set(value) != required or value.get("v") != 1:
+    # The version byte is the protocol contract; extra keys inside v1 are a
+    # compatible extension, not a different protocol.
+    if not isinstance(value, dict) or not required.issubset(value) or value.get("v") != 1:
         raise ValueError("unsupported rldyour-sysinfo sample")
     return value
 
 
-def samples(interval: float = 5, path: str | os.PathLike[str] | None = None) -> Iterator[Sample]:
+def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> Iterator[Sample]:
     """Yield live samples until the connection closes."""
     if not 1 <= interval <= 60:
         raise ValueError("interval must be between 1 and 60 seconds")
@@ -65,7 +89,7 @@ def samples(interval: float = 5, path: str | os.PathLike[str] | None = None) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Read live rldyour-sysinfo metrics")
-    parser.add_argument("--interval", type=float, default=5)
+    parser.add_argument("--interval", type=int, default=5)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     for sample in samples(args.interval):
