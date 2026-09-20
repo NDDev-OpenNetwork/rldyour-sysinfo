@@ -32,6 +32,8 @@ whole seconds:
   the range is ignored.
 - The daemon serves the fastest cadence any connected client requested and
   falls back to its configured `RLDYOUR_SYSINFO_INTERVAL` (default 5).
+- A new connection wakes the daemon's loop at once, so the first line is
+  never a full tick late.
 - A client that sends nothing gets the configured cadence — the handshake
   is optional.
 - The daemon reads at most one line and waits at most 250 ms for it.

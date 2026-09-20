@@ -26,11 +26,12 @@ daemon that restarts in milliseconds, is what makes the thing maintainable.
 
 ### What the design deliberately avoids
 
-- **No async runtime.** One timer at 0.2 Hz does not pay for `tokio` or
-  `async-io`. The daemon is one sleeping thread plus one accept thread.
+- **No async runtime.** One timer does not pay for `tokio` or `async-io`, even
+  at the fastest cadence clients can request. The daemon is one sleeping
+  thread plus one accept thread.
 - **No D-Bus stack.** `zbus` spawns a thread per connection and its own
-  executor. For pushing under two hundred bytes every five seconds, a plain
-  `UnixListener` from the standard library costs nothing and depends on nothing.
+  executor. For pushing under two hundred bytes a tick, a plain `UnixListener`
+  from the standard library costs nothing and depends on nothing.
 - **No process scanning.** Linux reads `/proc` and `/sys` directly. macOS uses
   Mach, BSD, IOKit, AppleSMC and IOHID. Windows refreshes system, component and network
   counters without constructing a process list.
@@ -76,7 +77,7 @@ with `--no-default-features`.
 
 ## Install on Linux
 
-Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS), 48, 49 or 50.
+Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS) through 50.
 
 Ubuntu amd64 can install the signed package repository:
 

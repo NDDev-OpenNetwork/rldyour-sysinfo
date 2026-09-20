@@ -2,8 +2,8 @@
 //!
 //! The daemon is deliberately single-purpose: one timer, one buffer, one
 //! newline-delimited JSON line per tick to every connected client. There is no
-//! async runtime and no D-Bus stack, because a 0.2 Hz cadence carrying under
-//! two hundred bytes does not pay for either. Steady-state operation performs
+//! async runtime and no D-Bus stack, because even the fastest tick carries
+//! under two hundred bytes and pays for neither. Steady-state operation performs
 //! no allocation: every file descriptor and every buffer is created once.
 
 // Release builds are background daemons: no console window should ever
