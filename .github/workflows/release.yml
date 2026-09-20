@@ -8,15 +8,19 @@ permissions:
   contents: read
 
 jobs:
-  linux:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify tag version
-        shell: bash
-        run: |
-          manifest_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' daemon/Cargo.toml | head -1)"
-          test "${GITHUB_REF_NAME}" = "v${manifest_version}"
+      # Gate everything on the tag matching every published version string,
+      # before any runner spends a minute building.
+      - run: ./scripts/check-version.sh "${GITHUB_REF_NAME}"
+
+  linux:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y libglib2.0-bin
@@ -42,6 +46,7 @@ jobs:
           path: dist/rldyour-sysinfo-*
 
   macos:
+    needs: verify
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,6 +77,7 @@ jobs:
           path: dist/rldyour-sysinfo-*.zip
 
   windows:
+    needs: verify
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,6 +96,7 @@ jobs:
           path: dist/rldyour-sysinfo-*.zip
 
   python:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
