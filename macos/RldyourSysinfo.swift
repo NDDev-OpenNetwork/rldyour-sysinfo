@@ -6,7 +6,7 @@ import Foundation
 /// com.nddev-opennetwork.rldyour-sysinfo interval N` overrides it; 0 selects
 /// the daemon's realtime mode.
 private let requestedInterval =
-    (UserDefaults.standard.object(forKey: "interval") as? Int ?? 5).clamped(to: 0...60)
+    min(max(UserDefaults.standard.object(forKey: "interval") as? Int ?? 5, 0), 60)
 /// Reconnect backoff, kept identical to the extension client.
 private let reconnectSeconds = 5.0
 /// Shown wherever the host cannot supply a metric.
