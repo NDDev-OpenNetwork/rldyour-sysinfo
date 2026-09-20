@@ -1,0 +1,11 @@
+Package: rldyour-sysinfo
+Architecture: amd64
+Maintainer: NDDev OpenNetwork <danil@nddev.it.com>
+Depends: init-system-helpers
+Section: utils
+Priority: optional
+Description: Low-overhead live system metrics daemon
+ Publishes CPU, memory, GPU, temperature, disk, and network readings as
+ newline-delimited JSON over a per-user Unix socket. A systemd user socket
+ unit is enabled for all sessions, so the daemon runs only while a client —
+ the GNOME Shell extension, or the Python client library — is attached.

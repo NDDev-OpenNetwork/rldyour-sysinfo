@@ -31,24 +31,19 @@ jobs:
         run: |
           set -euo pipefail
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' daemon/Cargo.toml | head -1)"
-          package="site/apt/pool/main/r/rldyour-sysinfo/rldyour-sysinfo_${version}_amd64.deb"
-          mkdir -p package/DEBIAN package/usr/bin package/usr/lib/systemd/user "$(dirname "${package}")" site/apt/dists/stable/main/binary-amd64
-          install -m755 daemon/target/release/rldyour-sysinfod package/usr/bin/
-          install -m644 daemon/systemd/* package/usr/lib/systemd/user/
-          cat > package/DEBIAN/control <<EOF
-          Package: rldyour-sysinfo
-          Version: ${version}
-          Architecture: amd64
-          Maintainer: NDDev OpenNetwork <danil@nddev.it.com>
-          Section: utils
-          Priority: optional
-          Description: Low-overhead live system metrics daemon
-          EOF
-          dpkg-deb --root-owner-group --build package "${package}"
+          mkdir -p site/apt/pool/main/r/rldyour-sysinfo site/apt/dists/stable/main/binary-amd64
+          scripts/build-deb.sh daemon/target/release/rldyour-sysinfod site/apt/pool/main/r/rldyour-sysinfo
           cd site/apt
           dpkg-scanpackages --arch amd64 pool > dists/stable/main/binary-amd64/Packages
           gzip -9 -k dists/stable/main/binary-amd64/Packages
-          apt-ftparchive release dists/stable > dists/stable/Release
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="NDDev OpenNetwork" \
+            -o APT::FTPArchive::Release::Label="rldyour-sysinfo" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="amd64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            release dists/stable > dists/stable/Release
           printf '%s' "${APT_SIGNING_KEY}" | gpg --batch --import
           gpg --batch --yes --armor --detach-sign -o dists/stable/Release.gpg dists/stable/Release
           gpg --batch --yes --clearsign -o dists/stable/InRelease dists/stable/Release
@@ -60,6 +55,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rldyour-sysinfo
           test -x /usr/bin/rldyour-sysinfod
+          # The maintainer scripts must have enabled the socket for every
+          # login session — the package is useless until it exists.
+          test -L /usr/lib/systemd/user/sockets.target.wants/rldyour-sysinfod.socket
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site

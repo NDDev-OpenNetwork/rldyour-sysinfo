@@ -7,7 +7,8 @@ launchctl bootout "${USER_DOMAIN}/com.nddev-opennetwork.rldyour-sysinfod" 2>/dev
 rm -f "${HOME}/Library/LaunchAgents/com.nddev-opennetwork.rldyour-sysinfo.plist"
 rm -f "${HOME}/Library/LaunchAgents/com.nddev-opennetwork.rldyour-sysinfod.plist"
 rm -f "${HOME}/.local/bin/rldyour-sysinfod"
-rm -f "${HOME}/Library/Caches/rldyour-sysinfo/rldyour-sysinfo.sock"
 rm -rf "${HOME}/Applications/rldyour-sysinfo.app"
-rmdir "${HOME}/Library/Caches/rldyour-sysinfo" 2>/dev/null || true
+# Current and pre-0.3 socket locations alike.
+rm -rf "${HOME}/Library/Application Support/rldyour-sysinfo"
+rm -rf "${HOME}/Library/Caches/rldyour-sysinfo"
 printf 'Removed rldyour-sysinfo from this macOS account.\n'

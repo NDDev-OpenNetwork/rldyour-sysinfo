@@ -120,11 +120,14 @@ with Xcode Command Line Tools.
 ```
 
 The installer builds the same Rust daemon with native Mach, BSD, IOKit and SMC
-readers, creates a small native menu bar app, and starts both with per-user
-LaunchAgents. It does not install or invoke a third-party monitor and needs no
-administrator privileges. Apple GPU load comes from IOAccelerator performance
-statistics; CPU and GPU temperatures come from read-only AppleSMC sensors with
-an IOHID temperature fallback on supported Apple silicon models.
+readers, creates a small native menu bar app, and registers both with per-user
+LaunchAgents. launchd owns the socket and starts the daemon on the first
+connection — the same socket-activation model systemd provides on Linux — so
+it exits when nobody is watching. It does not install or invoke a third-party
+monitor and needs no administrator privileges. Apple GPU load comes from
+IOAccelerator performance statistics; CPU and GPU temperatures come from
+read-only AppleSMC sensors with an IOHID temperature fallback on supported
+Apple silicon models.
 
 Remove it with `./uninstall-macos.sh`.
 
@@ -137,9 +140,10 @@ current desktop user:
 .\install-windows.ps1
 ```
 
-This installs the daemon under `%LOCALAPPDATA%\rldyour-sysinfo` and starts it at
-login. Remove it with `.\uninstall-windows.ps1`. The Windows daemon publishes
-the same protocol; a native tray client is not part of version 0.2.0.
+This installs the daemon under `%LOCALAPPDATA%\rldyour-sysinfo` and registers
+it in the `Run` key, so it starts at login with no console window. Remove it
+with `.\uninstall-windows.ps1`. The Windows daemon publishes the same
+protocol; a native tray client is not part of version 0.2.0.
 
 ## Configuration
 
@@ -182,7 +186,9 @@ from "unsupported". `v` is incremented only on an incompatible change.
 ```
 
 Percentages are per cent, temperatures are degrees Celsius, disk and network
-figures are bytes per second.
+figures are bytes per second. [`docs/protocol.md`](docs/protocol.md) is the
+full specification every client implements — transport locations, handshake,
+field meanings, and lifecycle.
 
 Python clients can use `pip install rldyour-sysinfo`; the command
 `rldyour-sysinfo --once` prints a single live sample from the local daemon.

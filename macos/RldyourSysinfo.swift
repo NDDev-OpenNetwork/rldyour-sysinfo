@@ -44,8 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             var address = sockaddr_un()
             address.sun_family = sa_family_t(AF_UNIX)
+            // Application Support, not Caches: the system may purge Caches
+            // under disk pressure, which would strand a live daemon.
             let path = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Caches/rldyour-sysinfo/rldyour-sysinfo.sock").path
+                .appendingPathComponent("Library/Application Support/rldyour-sysinfo/rldyour-sysinfo.sock").path
             guard path.utf8.count < MemoryLayout.size(ofValue: address.sun_path) else { return self.retry() }
             withUnsafeMutableBytes(of: &address.sun_path) { raw in
                 raw.initializeMemory(as: UInt8.self, repeating: 0)

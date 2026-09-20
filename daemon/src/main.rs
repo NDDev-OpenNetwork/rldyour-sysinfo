@@ -6,6 +6,10 @@
 //! two hundred bytes does not pay for either. Steady-state operation performs
 //! no allocation: every file descriptor and every buffer is created once.
 
+// Release builds are background daemons: no console window should ever
+// appear when Windows launches the binary from the Run key.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod collector;
 mod proto;
 mod source;
@@ -123,17 +127,14 @@ fn run() -> std::io::Result<()> {
     }
 }
 
-/// Uses the socket systemd passed in, or binds one under the runtime directory.
+/// Uses the socket the service manager passed in, or binds one under the
+/// platform's per-user directory.
 ///
-/// Returns the listener and whether systemd owns it, which decides if the
+/// Returns the listener and whether the manager owns it, which decides if the
 /// daemon is allowed to exit when idle.
 fn bind() -> std::io::Result<(UnixListener, bool)> {
-    #[cfg(target_os = "linux")]
-    if inherited_socket() {
-        use std::os::fd::FromRawFd;
-        // SAFETY: systemd guarantees descriptor 3 is the listening socket it
-        // created for this unit, and it is passed to exactly one process.
-        return Ok((unsafe { UnixListener::from_raw_fd(3) }, true));
+    if let Some(listener) = inherited_listener() {
+        return Ok((listener, true));
     }
 
     let path = socket_path()?;
@@ -171,7 +172,10 @@ fn socket_path() -> std::io::Result<std::path::PathBuf> {
     {
         let home =
             std::env::var_os("HOME").ok_or_else(|| std::io::Error::other("HOME is unset"))?;
-        let directory = std::path::Path::new(&home).join("Library/Caches/rldyour-sysinfo");
+        // Library/Caches is purgeable under disk pressure, which would strand
+        // the socket of a live daemon; Application Support is not.
+        let directory =
+            std::path::Path::new(&home).join("Library/Application Support/rldyour-sysinfo");
         std::fs::create_dir_all(&directory)?;
         return Ok(directory.join(SOCKET_NAME));
     }
@@ -190,16 +194,69 @@ fn socket_path() -> std::io::Result<std::path::PathBuf> {
     Err(std::io::Error::other("no socket location on this platform"))
 }
 
-/// True when systemd passed a listening socket to this exact process.
+/// The listening socket the platform service manager passed in, if any.
+///
+/// systemd hands its socket over as descriptor 3 when LISTEN_FDS/LISTEN_PID
+/// name this process; launchd keeps it in the `Sockets` dictionary and hands
+/// it out through `launch_activate_socket`. Both let the daemon exit when
+/// idle because the next connection relaunches it.
 #[cfg(target_os = "linux")]
-fn inherited_socket() -> bool {
+fn inherited_listener() -> Option<UnixListener> {
     let listening = std::env::var("LISTEN_FDS")
         .ok()
         .and_then(|v| v.parse::<u32>().ok());
     let owner = std::env::var("LISTEN_PID")
         .ok()
         .and_then(|v| v.parse::<u32>().ok());
-    listening.is_some_and(|count| count >= 1) && owner == Some(std::process::id())
+    if !(listening.is_some_and(|count| count >= 1) && owner == Some(std::process::id())) {
+        return None;
+    }
+    use std::os::fd::FromRawFd;
+    // SAFETY: systemd guarantees descriptor 3 is the listening socket it
+    // created for this unit, and it is passed to exactly one process.
+    Some(unsafe { UnixListener::from_raw_fd(3) })
+}
+
+#[cfg(target_os = "macos")]
+fn inherited_listener() -> Option<UnixListener> {
+    use std::ffi::CString;
+    use std::os::fd::FromRawFd;
+    use std::os::raw::{c_char, c_int};
+
+    unsafe extern "C" {
+        /// In libSystem since launchd exists; returns an error code when this
+        /// process was not launched with a `Sockets` dictionary.
+        fn launch_activate_socket(
+            name: *const c_char,
+            fds: *mut *mut c_int,
+            cnt: *mut usize,
+        ) -> c_int;
+    }
+
+    // The key must match the plist's `Sockets` entry.
+    let name = CString::new("sock").ok()?;
+    let mut fds: *mut c_int = std::ptr::null_mut();
+    let mut count: usize = 0;
+    if unsafe { launch_activate_socket(name.as_ptr(), &mut fds, &mut count) } != 0
+        || fds.is_null()
+        || count == 0
+    {
+        return None;
+    }
+    // The plist declares exactly one socket; the array is launchd-owned and
+    // the caller frees it.
+    let fd = unsafe { *fds };
+    unsafe { libc::free(fds.cast()) };
+    // SAFETY: launch_activate_socket returned this descriptor to us; it is a
+    // listening socket nobody else owns.
+    Some(unsafe { UnixListener::from_raw_fd(fd) })
+}
+
+#[cfg(target_os = "windows")]
+fn inherited_listener() -> Option<UnixListener> {
+    // Windows has no per-user service manager with socket activation; the
+    // daemon always binds its own and stays resident.
+    None
 }
 
 fn interval() -> Duration {

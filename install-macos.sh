@@ -6,7 +6,10 @@ BIN_DIR="${HOME}/.local/bin"
 AGENT_DIR="${HOME}/Library/LaunchAgents"
 APP_DIR="${HOME}/Applications/rldyour-sysinfo.app"
 
-install -d "${BIN_DIR}" "${AGENT_DIR}" "${APP_DIR}/Contents/MacOS"
+# launchd binds the activation socket at this path, so the directory must
+# exist before the agent loads.
+install -d "${BIN_DIR}" "${AGENT_DIR}" "${APP_DIR}/Contents/MacOS" \
+  "${HOME}/Library/Application Support/rldyour-sysinfo"
 if [[ -x "${ROOT}/prebuilt/rldyour-sysinfod" && -d "${ROOT}/prebuilt/rldyour-sysinfo.app" ]]; then
   install -m755 "${ROOT}/prebuilt/rldyour-sysinfod" "${BIN_DIR}/rldyour-sysinfod"
   cp -R "${ROOT}/prebuilt/rldyour-sysinfo.app/." "${APP_DIR}/"

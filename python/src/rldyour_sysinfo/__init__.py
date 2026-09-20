@@ -53,7 +53,12 @@ class Sample(TypedDict):
 def socket_path() -> Path:
     """Return the daemon socket used by the current platform."""
     if sys.platform == "darwin":
-        return Path.home() / "Library/Caches/rldyour-sysinfo/rldyour-sysinfo.sock"
+        # Application Support, not Caches: Caches is purgeable under disk
+        # pressure, which would strand the socket of a live daemon.
+        return (
+            Path.home()
+            / "Library/Application Support/rldyour-sysinfo/rldyour-sysinfo.sock"
+        )
     if os.name == "nt":
         root = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP")
         if not root:
