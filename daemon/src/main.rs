@@ -27,10 +27,14 @@ use uds_windows::{UnixListener, UnixStream};
 /// Publication cadence when nothing asks for another. Overridable through
 /// `RLDYOUR_SYSINFO_INTERVAL`, expressed in whole seconds.
 const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
-/// Bounds for a cadence a client may request. Below one second the readings
-/// stop being meaningful for a panel; above a minute the panel stops being one.
-const MIN_INTERVAL: u64 = 1;
+/// Bounds for a cadence a client may request. Zero is not "never" but the
+/// realtime mode, a half-second tick; above a minute the panel stops being one.
+const MIN_INTERVAL: u64 = 0;
 const MAX_INTERVAL: u64 = 60;
+/// The tick realtime mode runs at. Half a second is the floor where kernel
+/// counters and sensor reads still cost less than the update is worth — and
+/// stays above sysinfo's minimum CPU refresh window on Windows.
+const REALTIME_INTERVAL: Duration = Duration::from_millis(500);
 /// A client announces itself immediately or not at all, so this wait only ever
 /// costs anything for a peer that connected and then went quiet.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(250);
@@ -61,7 +65,8 @@ fn main() -> ExitCode {
                  the socket location and cadence come from the environment.\n\
                  \n\
                  Environment:\n\
-                 \x20 RLDYOUR_SYSINFO_INTERVAL  Cadence in seconds when no client asks (default 5)\n\
+                 \x20 RLDYOUR_SYSINFO_INTERVAL  Cadence in seconds when no client asks\n\
+                 \x20                           (default 5; 0 selects half-second realtime)\n\
                  \x20 RLDYOUR_SYSINFO_GPU       Set to 0 to skip NVIDIA metrics entirely",
                 env!("CARGO_PKG_VERSION")
             );
@@ -263,8 +268,11 @@ fn interval() -> Duration {
     std::env::var("RLDYOUR_SYSINFO_INTERVAL")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
-        .filter(|seconds| *seconds > 0)
-        .map_or(DEFAULT_INTERVAL, Duration::from_secs)
+        .filter(|seconds| *seconds <= MAX_INTERVAL)
+        .map_or(DEFAULT_INTERVAL, |seconds| match seconds {
+            0 => REALTIME_INTERVAL,
+            _ => Duration::from_secs(seconds),
+        })
 }
 
 /// A connected client together with the cadence it asked for.
@@ -282,7 +290,11 @@ fn cadence(clients: &[Client], configured: Duration) -> Duration {
         .iter()
         .filter_map(|client| client.requested)
         .min()
-        .map_or(configured, Duration::from_secs)
+        .map_or(configured, |seconds| match seconds {
+            // Zero is the realtime request, not "never publish".
+            0 => REALTIME_INTERVAL,
+            _ => Duration::from_secs(seconds),
+        })
 }
 
 /// Reads the optional opening line in which a client states its wanted cadence.
@@ -297,8 +309,9 @@ fn handshake(stream: &UnixStream) -> Option<u64> {
 
 /// Extracts a cadence request from `{"interval":N}`.
 ///
-/// Anything else, including silence, yields `None` and leaves the daemon on its
-/// configured cadence, so a client that says nothing still works.
+/// `0` asks for realtime; anything else, including silence, yields `None` and
+/// leaves the daemon on its configured cadence, so a client that says nothing
+/// still works.
 fn parse_interval(line: &str) -> Option<u64> {
     let seconds: u64 = line
         .split_once("\"interval\"")?
@@ -353,12 +366,14 @@ mod tests {
     fn reads_a_cadence_request() {
         assert_eq!(parse_interval(r#"{"interval":3}"#), Some(3));
         assert_eq!(parse_interval(r#"{ "interval" : 12 }"#), Some(12));
+        // Zero is a real request: the realtime mode.
+        assert_eq!(parse_interval(r#"{"interval":0}"#), Some(0));
     }
 
     #[test]
     fn rejects_a_cadence_outside_what_a_panel_can_use() {
-        assert_eq!(parse_interval(r#"{"interval":0}"#), None);
         assert_eq!(parse_interval(r#"{"interval":61}"#), None);
+        assert_eq!(parse_interval(r#"{"interval":-1}"#), None);
     }
 
     #[test]
@@ -372,5 +387,20 @@ mod tests {
     fn the_fastest_request_wins_and_silence_does_not_slow_anyone() {
         let configured = Duration::from_secs(5);
         assert_eq!(cadence(&[], configured), configured);
+        assert_eq!(
+            cadence(&[client(Some(0)), client(Some(2))], configured),
+            REALTIME_INTERVAL
+        );
+        assert_eq!(
+            cadence(&[client(Some(10)), client(None)], configured),
+            Duration::from_secs(10)
+        );
+    }
+
+    fn client(requested: Option<u64>) -> Client {
+        Client {
+            stream: UnixStream::pair().unwrap().0,
+            requested,
+        }
     }
 }

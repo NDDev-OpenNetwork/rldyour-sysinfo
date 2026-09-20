@@ -22,4 +22,6 @@ def test_decode_accepts_extra_fields_within_v1():
 
 def test_interval_is_bounded_before_connecting():
     with pytest.raises(ValueError):
-        next(samples(0))
+        next(samples(61))
+    with pytest.raises(ValueError):
+        next(samples(-1))

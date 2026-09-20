@@ -27,7 +27,9 @@ whole seconds:
 {"interval":5}
 ```
 
-- Bounds are 1–60 seconds; anything else is ignored.
+- Bounds are 0–60. `0` is not "never": it selects realtime, a 500 ms tick —
+  the fastest cadence at which the readers stay meaningful. Anything outside
+  the range is ignored.
 - The daemon serves the fastest cadence any connected client requested and
   falls back to its configured `RLDYOUR_SYSINFO_INTERVAL` (default 5).
 - A client that sends nothing gets the configured cadence — the handshake

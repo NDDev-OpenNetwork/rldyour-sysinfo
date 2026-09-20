@@ -5,11 +5,12 @@
 
     <key name="interval" type="i">
       <default>5</default>
-      <range min="1" max="60"/>
+      <range min="0" max="60"/>
       <summary>Seconds between readings</summary>
       <description>
         Requested from the daemon when the indicator connects. The daemon
-        serves the fastest cadence any connected client asks for.
+        serves the fastest cadence any connected client asks for. Zero selects
+        realtime: half-second ticks.
       </description>
     </key>
 

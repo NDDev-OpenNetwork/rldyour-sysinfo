@@ -2,13 +2,14 @@
 # rldyour-sysinfo — end-to-end protocol check against a live daemon.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Connects at a 1-second cadence, reads two samples, and asserts the wire
-# shape the clients rely on. The second tick must carry a CPU figure: the
-# first can legitimately be null while the counters establish a baseline.
+# Connects in realtime mode (interval 0 — 500 ms ticks), reads two samples,
+# and asserts the wire shape the clients rely on. The second tick must carry
+# a CPU figure: the first can legitimately be null while the counters
+# establish a baseline.
 
 import rldyour_sysinfo
 
-for count, sample in enumerate(rldyour_sysinfo.samples(interval=1), start=1):
+for count, sample in enumerate(rldyour_sysinfo.samples(interval=0), start=1):
     assert sample["v"] == 1, f"unexpected protocol version {sample['v']}"
     print(
         f"sample {count}: cpu={sample['cpu']['usage']} "

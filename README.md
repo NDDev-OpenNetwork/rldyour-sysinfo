@@ -143,15 +143,17 @@ current desktop user:
 This installs the daemon under `%LOCALAPPDATA%\rldyour-sysinfo` and registers
 it in the `Run` key, so it starts at login with no console window. Remove it
 with `.\uninstall-windows.ps1`. The Windows daemon publishes the same
-protocol; a native tray client is not part of version 0.2.0.
+protocol; a native tray client is not part of the 0.2 series.
 
 ## Configuration
 
 Open the extension's preferences for what most people want to change:
 
-- **Interval** — seconds between readings, 1 to 60. The indicator asks the
-  daemon for this cadence when it connects, and the daemon serves the fastest
-  any connected client requested.
+- **Interval** — a cadence preset: Economy (10 s), Standard (5 s), Fast (2 s)
+  or Realtime, which puts the daemon on half-second ticks. The indicator asks
+  the daemon for this cadence when it connects, and the daemon serves the
+  fastest any connected client requested. Any whole number from 0 (realtime)
+  to 60 seconds can also be set directly on the `interval` key.
 - **Panel** — which of processor, memory, graphics and network appear in the
   top bar, and whether temperatures are shown beside them. The dropdown always
   lists everything regardless.
@@ -162,13 +164,14 @@ daemon LaunchAgent's `EnvironmentVariables` dictionary.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RLDYOUR_SYSINFO_INTERVAL` | `5` | Cadence when no client asks for one |
+| `RLDYOUR_SYSINFO_INTERVAL` | `5` | Cadence when no client asks for one; `0` selects realtime (500 ms) |
 | `RLDYOUR_SYSINFO_GPU` | unset | Set to `0` to skip NVML entirely |
 
 ## Protocol
 
-A client may open with a single line stating the cadence it wants, which the
-daemon honours within one to sixty seconds and otherwise ignores:
+A client may open with a single line stating the cadence it wants — `0` is
+realtime (500 ms ticks), `1`–`60` a whole number of seconds — which the daemon
+honours and otherwise ignores:
 
 ```json
 {"interval":5}

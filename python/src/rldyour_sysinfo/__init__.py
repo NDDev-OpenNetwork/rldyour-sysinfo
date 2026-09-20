@@ -81,9 +81,12 @@ def _decode(line: bytes) -> Sample:
 
 
 def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> Iterator[Sample]:
-    """Yield live samples until the connection closes."""
-    if not 1 <= interval <= 60:
-        raise ValueError("interval must be between 1 and 60 seconds")
+    """Yield live samples until the connection closes.
+
+    `interval` is the cadence in seconds; 0 selects realtime (500 ms ticks).
+    """
+    if not 0 <= interval <= 60:
+        raise ValueError("interval must be between 0 (realtime) and 60 seconds")
     with socket.socket(socket.AF_UNIX) as connection:
         connection.connect(str(Path(path) if path is not None else socket_path()))
         connection.sendall(json.dumps({"interval": interval}).encode() + b"\n")
@@ -94,7 +97,12 @@ def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> It
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Read live rldyour-sysinfo metrics")
-    parser.add_argument("--interval", type=int, default=5)
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=5,
+        help="cadence in seconds (0 = realtime, 500 ms ticks)",
+    )
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     for sample in samples(args.interval):

@@ -2,8 +2,11 @@ import AppKit
 import Foundation
 
 /// Seconds between samples requested from the daemon — the same default the
-/// GNOME extension's schema ships.
-private let requestedInterval = 5
+/// GNOME extension's schema ships. `defaults write
+/// com.nddev-opennetwork.rldyour-sysinfo interval N` overrides it; 0 selects
+/// the daemon's realtime mode.
+private let requestedInterval =
+    (UserDefaults.standard.object(forKey: "interval") as? Int ?? 5).clamped(to: 0...60)
 /// Reconnect backoff, kept identical to the extension client.
 private let reconnectSeconds = 5.0
 /// Shown wherever the host cannot supply a metric.
