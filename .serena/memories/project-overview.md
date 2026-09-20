@@ -13,5 +13,5 @@ Shared collection delegation lives in `collector.rs`, wire encoding in
 capability must be emitted as JSON `null`; estimates must not masquerade as
 measurements.
 
-The minimum supported Rust version is 1.85. Version 0.2.0 supports Linux,
+The minimum supported Rust version is 1.85. Version 0.2.1 supports Linux,
 macOS, and Windows 10 or newer at the daemon layer.

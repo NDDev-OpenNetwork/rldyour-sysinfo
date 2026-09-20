@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-09-20
 
+- Add cadence modes end to end: clients may ask for `interval` 1–60 seconds
+  or `0`, which selects realtime — the daemon ticks every 500 ms, still above
+  sysinfo's minimum CPU refresh window. The extension preferences offer
+  Economy, Standard, Fast and Realtime presets; the macOS app honours
+  `defaults write com.nddev-opennetwork.rldyour-sysinfo interval N`; and
+  `RLDYOUR_SYSINFO_INTERVAL=0` runs realtime when no client asks.
+- Trim the remaining per-tick allocations in the macOS and Windows readers:
+  interface classification and sensor averaging no longer allocate per
+  sample.
 - Move the macOS socket to `~/Library/Application Support` (Caches is
   purgeable) and activate the daemon through a launchd `Sockets` entry, so it
   idles out like the systemd unit instead of running continuously.

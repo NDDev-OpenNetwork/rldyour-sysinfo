@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, TypedDict
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 class Cpu(TypedDict):
