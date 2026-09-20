@@ -19,7 +19,7 @@ use std::io::{BufRead, BufReader, Write};
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::process::ExitCode;
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 use std::time::{Duration, Instant};
 #[cfg(windows)]
 use uds_windows::{UnixListener, UnixStream};
@@ -98,7 +98,19 @@ fn run() -> std::io::Result<()> {
     let mut idle_since = Some(Instant::now());
 
     loop {
-        std::thread::sleep(cadence(&connected, configured));
+        // Wait out the cadence on the accept channel itself: a new connection
+        // wakes the loop at once, so its first sample is not a whole tick
+        // late. No polling — the channel is the wakeup.
+        match clients.recv_timeout(cadence(&connected, configured)) {
+            Ok(client) => {
+                let _ = client.stream.set_write_timeout(Some(WRITE_TIMEOUT));
+                connected.push(client);
+                idle_since = None;
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            // The accept thread only ends if the listener itself died.
+            Err(RecvTimeoutError::Disconnected) => return Ok(()),
+        }
 
         loop {
             match clients.try_recv() {
