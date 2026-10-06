@@ -47,7 +47,7 @@ impl MetricsSource for WindowsCollector {
         self.sampled_at = now;
 
         let mut snapshot = Snapshot {
-            cpu: Some(self.cpu.usage()),
+            cpu: self.cpu.usage(),
             ..Snapshot::default()
         };
         if let Some(usage) = self.memory.usage() {
@@ -63,8 +63,8 @@ impl MetricsSource for WindowsCollector {
             snapshot.net_tx = Some(throughput.tx);
         }
         if let Some(reading) = self.gpu.read() {
-            snapshot.gpu = Some(reading.usage);
-            snapshot.gpu_memory = Some(reading.memory);
+            snapshot.gpu = reading.usage;
+            snapshot.gpu_memory = reading.memory;
             snapshot.gpu_temperature = reading.temperature;
         }
         self.temperatures.refresh();

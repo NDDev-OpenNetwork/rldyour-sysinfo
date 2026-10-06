@@ -1,6 +1,30 @@
 # Changelog
 
-## 0.2.1 — 2026-09-20
+## 0.3.0 — 2026-10-07
+
+- Separate the bounded streaming server, platform socket activation and metric
+  collectors. Cached first samples and one sampling clock prevent connection
+  churn from forcing extra hardware reads. Slow readers cannot stall peers.
+- Bound handshakes to 256 bytes and 250 ms total, admit at most 32 clients,
+  preserve a live listener on duplicate startup and validate inherited sockets.
+- Stop sampling while no clients are attached; preserve socket activation and
+  the thirty-second idle exit on Linux and macOS.
+- Track Linux disk/network counters per physical device, discover hotplugged
+  devices every thirty seconds and use successful-observation intervals after
+  read failures. Read only the aggregate prefix of /proc/stat.
+- Replace the C HID temperature shim with Rust RAII, cache HID clients/services,
+  reduce SMC metadata reads and reuse Mach host rights with explicit release.
+  Handle wrapping 32-bit Mach CPU counters without a false idle sample.
+- Preserve independent NVIDIA readings when one NVML metric is unavailable.
+- Split the macOS UI, typed protocol/formatting and event-driven socket client.
+  Enforce Swift 6 concurrency, prevent SIGPIPE, bound incoming frames and skip
+  unchanged UI labels. No blocked reader thread is kept resident.
+- Bound GNOME and Python frames; clean up cancelled GNOME connections and
+  perform the handshake write asynchronously.
+- Update Windows sysinfo to 0.39.6, require Rust 1.95 and Swift 6 for macOS,
+  and extend cross-platform lifecycle, socket and packaging checks.
+
+## 0.2.1 — unreleased changes incorporated into 0.3.0
 
 - Add cadence modes end to end: clients may ask for `interval` 1–60 seconds
   or `0`, which selects realtime — the daemon ticks every 500 ms, still above

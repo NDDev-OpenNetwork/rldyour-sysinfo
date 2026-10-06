@@ -3,6 +3,8 @@
 mod cpu;
 mod disk;
 mod gpu;
+mod hid;
+mod mach;
 mod mem;
 mod net;
 mod temp;
@@ -71,7 +73,7 @@ impl MetricsSource for MacosCollector {
             .temperatures
             .gpu()
             .or(reading.temperature)
-            .or_else(temp::gpu_hid_fallback);
+            .or_else(|| self.temperatures.gpu_hid());
         snapshot.disk_temperature = self.temperatures.disk();
         snapshot
     }

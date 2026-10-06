@@ -10,13 +10,22 @@
 # produces.
 set -euo pipefail
 
-binary="$1"
+binary="$(realpath "$1")"
 outdir="$2"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "${root}/daemon/Cargo.toml" | head -1)"
 
-stage="$(mktemp -d)"
-trap 'rm -rf "${stage}"' EXIT
+scratch="$(mktemp -d)"
+trap 'rm -rf "${scratch}"' EXIT
+stage="${scratch}/stage"
+install -d -m755 "${stage}" "${scratch}/debian"
+# Generate native shared-library dependencies rather than letting a binary
+# requiring newer glibc install on an incompatible distribution.
+printf 'Source: rldyour-sysinfo\nMaintainer: NDDev OpenNetwork <danil@nddev.it.com>\n\n' > "${scratch}/debian/control"
+cat "${root}/packaging/deb/control" >> "${scratch}/debian/control"
+shlibs="$(cd "${scratch}" && dpkg-shlibdeps -O -e "${binary}")"
+shlibs="${shlibs#shlibs:Depends=}"
+[[ -n "${shlibs}" ]] || { echo 'Missing shared-library dependencies' >&2; exit 1; }
 
 install -Dm755 "${binary}" "${stage}/usr/bin/rldyour-sysinfod"
 install -Dm644 "${root}/daemon/systemd/rldyour-sysinfod.socket" \
@@ -28,6 +37,7 @@ chmod 644 "${stage}/usr/lib/systemd/user/rldyour-sysinfod.service"
 
 install -Dm644 "${root}/packaging/deb/control" "${stage}/DEBIAN/control"
 sed -i "/^Package: rldyour-sysinfo$/a Version: ${version}" "${stage}/DEBIAN/control"
+sed -i "s|^Depends:.*|Depends: init-system-helpers, ${shlibs}|" "${stage}/DEBIAN/control"
 install -Dm755 "${root}/packaging/deb/postinst" "${stage}/DEBIAN/postinst"
 install -Dm755 "${root}/packaging/deb/prerm" "${stage}/DEBIAN/prerm"
 install -Dm755 "${root}/packaging/deb/postrm" "${stage}/DEBIAN/postrm"

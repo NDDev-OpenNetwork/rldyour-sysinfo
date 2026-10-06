@@ -40,11 +40,11 @@ impl Gpu {
                         break;
                     }
                 }
-                if let Some(CFValue::Integer(value)) = stats.get("Temperature(C)") {
-                    if (1..=120).contains(value) {
-                        temperatures.0 += *value as f64;
-                        temperatures.1 += 1;
-                    }
+                if let Some(CFValue::Integer(value)) = stats.get("Temperature(C)")
+                    && (1..=120).contains(value)
+                {
+                    temperatures.0 += *value as f64;
+                    temperatures.1 += 1;
                 }
             }
         }

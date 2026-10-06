@@ -33,6 +33,8 @@ export class Client {
         this._connection = null;
         this._stream = null;
         this._reconnectId = 0;
+        this._buffer = new Uint8Array(0);
+        this._decoder = new TextDecoder('utf-8', {fatal: true});
         this._connect();
     }
 
@@ -50,8 +52,13 @@ export class Client {
                 return;
             }
 
+            if (this._cancellable.is_cancelled()) {
+                connection.close_async(GLib.PRIORITY_DEFAULT, null, null);
+                return;
+            }
+
             this._connection = connection;
-            this._stream = new Gio.DataInputStream({baseStream: connection.get_input_stream()});
+            this._stream = connection.get_input_stream();
             this._announce(connection);
             this._onState(true);
             this._read();
@@ -65,17 +72,25 @@ export class Client {
      */
     _announce(connection) {
         try {
-            connection.get_output_stream().write_all(`{"interval":${this._interval}}\n`, this._cancellable);
+            const bytes = new TextEncoder().encode(`{"interval":${this._interval}}\n`);
+            connection.get_output_stream().write_all_async(bytes, GLib.PRIORITY_DEFAULT, this._cancellable, (source, result) => {
+                try {
+                    source.write_all_finish(result);
+                } catch (error) {
+                    if (!this._cancellable.is_cancelled())
+                        this._retry();
+                }
+            });
         } catch {
             // Falls back to whatever the daemon is configured for.
         }
     }
 
     _read() {
-        this._stream.read_line_async(GLib.PRIORITY_DEFAULT, this._cancellable, (source, result) => {
-            let line;
+        this._stream.read_bytes_async(MAX_LINE, GLib.PRIORITY_DEFAULT, this._cancellable, (source, result) => {
+            let bytes;
             try {
-                [line] = source.read_line_finish_utf8(result);
+                bytes = source.read_bytes_finish(result).get_data();
             } catch (error) {
                 if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                     this._retry();
@@ -84,13 +99,39 @@ export class Client {
 
             // A null line is a clean close, which happens whenever the daemon
             // decides nobody needed it any more.
-            if (line === null) {
+            if (this._cancellable.is_cancelled())
+                return;
+            if (bytes.length === 0) {
                 this._retry();
                 return;
             }
 
-            if (line.length <= MAX_LINE)
-                this._decode(line);
+            const combined = new Uint8Array(this._buffer.length + bytes.length);
+            combined.set(this._buffer);
+            combined.set(bytes, this._buffer.length);
+            let start = 0;
+            for (let end = 0; end < combined.length; end++) {
+                if (combined[end] !== 10)
+                    continue;
+                if (end - start > MAX_LINE) {
+                    this._retry();
+                    return;
+                }
+                try {
+                    this._decode(this._decoder.decode(combined.subarray(start, end)));
+                } catch {
+                    this._retry();
+                    return;
+                }
+                if (this._stream === null)
+                    return;
+                start = end + 1;
+            }
+            this._buffer = combined.slice(start);
+            if (this._buffer.length > MAX_LINE) {
+                this._retry();
+                return;
+            }
 
             // The consumer is allowed to stop us from inside the callback
             // above, which is exactly what the indicator does when the shell
@@ -119,6 +160,8 @@ export class Client {
 
     _retry() {
         this._closeConnection();
+        if (this._cancellable.is_cancelled())
+            return;
         this._onState(false);
 
         if (this._reconnectId)
@@ -135,6 +178,7 @@ export class Client {
             this._connection.close_async(GLib.PRIORITY_DEFAULT, null, null);
         this._connection = null;
         this._stream = null;
+        this._buffer = new Uint8Array(0);
     }
 
     /** Releases the socket and the reconnect timer. The client is done after this. */

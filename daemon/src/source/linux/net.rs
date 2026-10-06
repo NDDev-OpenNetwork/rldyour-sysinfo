@@ -1,23 +1,14 @@
-//! Linux physical interface throughput from `/proc/net/dev`.
+//! Physical network throughput with hotplug-safe per-device counters.
 
+use super::devices::Devices;
 use super::{VirtualFile, field};
-use crate::source::{delta, rate};
 use std::io;
+use std::time::Instant;
 
 pub struct Network {
     file: VirtualFile,
-    /// Physical interfaces only, so container bridges and veth pairs do not
-    /// count the same packet twice as it is forwarded.
-    interfaces: Vec<String>,
-    previous: Option<Sample>,
+    devices: Devices,
 }
-
-#[derive(Clone, Copy)]
-struct Sample {
-    received: u64,
-    transmitted: u64,
-}
-
 pub struct Throughput {
     pub rx: u64,
     pub tx: u64,
@@ -27,48 +18,45 @@ impl Network {
     pub fn new() -> io::Result<Self> {
         Ok(Self {
             file: VirtualFile::open("/proc/net/dev")?,
-            interfaces: physical_interfaces()?,
-            previous: None,
+            devices: Devices::new("/sys/class/net")?,
         })
     }
 
-    /// Bytes received and transmitted per second across physical interfaces.
-    pub fn throughput(&mut self, seconds: f64) -> io::Result<Option<Throughput>> {
-        let (mut received, mut transmitted) = (0u64, 0u64);
-
+    pub fn throughput(&mut self) -> io::Result<Option<Throughput>> {
+        self.devices.refresh();
+        let now = Instant::now();
+        let mut total = Throughput { rx: 0, tx: 0 };
+        let mut found = false;
         for line in self.file.read()?.lines() {
             let Some((name, counters)) = line.split_once(':') else {
                 continue;
             };
             let name = name.trim();
-            if !self.interfaces.iter().any(|interface| interface == name) {
+            let Some(first) = field::<u64>(counters, 0) else {
                 continue;
+            };
+            let Some(second) = field::<u64>(counters, 8) else {
+                continue;
+            };
+            let Some(device) = self
+                .devices
+                .entries
+                .iter_mut()
+                .find(|device| device.name == name)
+            else {
+                continue;
+            };
+            // diskstats sectors are always 512 bytes, regardless of block size.
+            if let Some((first, second)) =
+                device
+                    .counter
+                    .observe(first.saturating_mul(1), second.saturating_mul(1), now)
+            {
+                total.rx = total.rx.saturating_add(first);
+                total.tx = total.tx.saturating_add(second);
+                found = true;
             }
-            received += field::<u64>(counters, 0).unwrap_or(0);
-            transmitted += field::<u64>(counters, 8).unwrap_or(0);
         }
-
-        let current = Sample {
-            received,
-            transmitted,
-        };
-        let previous = self.previous.replace(current);
-
-        Ok(previous.map(|previous| Throughput {
-            rx: rate(delta(current.received, previous.received), seconds),
-            tx: rate(delta(current.transmitted, previous.transmitted), seconds),
-        }))
+        Ok(found.then_some(total))
     }
-}
-
-/// Interfaces with a backing device, which excludes loopback, bridges and veth.
-fn physical_interfaces() -> io::Result<Vec<String>> {
-    let mut interfaces = Vec::new();
-    for entry in std::fs::read_dir("/sys/class/net")? {
-        let entry = entry?;
-        if entry.path().join("device").exists() {
-            interfaces.push(entry.file_name().to_string_lossy().into_owned());
-        }
-    }
-    Ok(interfaces)
 }

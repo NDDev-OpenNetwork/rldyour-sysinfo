@@ -1,26 +1,14 @@
-//! Linux whole-disk throughput from `/proc/diskstats`.
+//! Physical disk throughput with hotplug-safe per-device counters.
 
+use super::devices::Devices;
 use super::{VirtualFile, field};
-use crate::source::{delta, rate};
 use std::io;
-
-/// The kernel reports disk transfers in fixed 512-byte units regardless of the
-/// device's own logical block size.
-const SECTOR_BYTES: u64 = 512;
+use std::time::Instant;
 
 pub struct Disk {
     file: VirtualFile,
-    /// Whole disks only; counting partitions too would double every transfer.
-    devices: Vec<String>,
-    previous: Option<Sample>,
+    devices: Devices,
 }
-
-#[derive(Clone, Copy)]
-struct Sample {
-    read: u64,
-    written: u64,
-}
-
 pub struct Throughput {
     pub read: u64,
     pub write: u64,
@@ -30,49 +18,44 @@ impl Disk {
     pub fn new() -> io::Result<Self> {
         Ok(Self {
             file: VirtualFile::open("/proc/diskstats")?,
-            devices: physical_disks()?,
-            previous: None,
+            devices: Devices::new("/sys/block")?,
         })
     }
 
-    /// Bytes read and written per second across all physical disks.
-    pub fn throughput(&mut self, seconds: f64) -> io::Result<Option<Throughput>> {
-        let (mut read, mut written) = (0u64, 0u64);
-
+    pub fn throughput(&mut self) -> io::Result<Option<Throughput>> {
+        self.devices.refresh();
+        let now = Instant::now();
+        let mut total = Throughput { read: 0, write: 0 };
+        let mut found = false;
         for line in self.file.read()?.lines() {
             let Some(name) = line.split_ascii_whitespace().nth(2) else {
                 continue;
             };
-            if !self.devices.iter().any(|device| device == name) {
+            let Some(first) = field::<u64>(line, 5) else {
                 continue;
+            };
+            let Some(second) = field::<u64>(line, 9) else {
+                continue;
+            };
+            let Some(device) = self
+                .devices
+                .entries
+                .iter_mut()
+                .find(|device| device.name == name)
+            else {
+                continue;
+            };
+            // diskstats sectors are always 512 bytes, regardless of block size.
+            if let Some((first, second)) =
+                device
+                    .counter
+                    .observe(first.saturating_mul(512), second.saturating_mul(512), now)
+            {
+                total.read = total.read.saturating_add(first);
+                total.write = total.write.saturating_add(second);
+                found = true;
             }
-            read += field::<u64>(line, 5).unwrap_or(0);
-            written += field::<u64>(line, 9).unwrap_or(0);
         }
-
-        let current = Sample { read, written };
-        let previous = self.previous.replace(current);
-
-        Ok(previous.map(|previous| Throughput {
-            read: rate(delta(current.read, previous.read) * SECTOR_BYTES, seconds),
-            write: rate(
-                delta(current.written, previous.written) * SECTOR_BYTES,
-                seconds,
-            ),
-        }))
+        Ok(found.then_some(total))
     }
-}
-
-/// Block devices backed by real hardware, excluding loop, ram and zram.
-fn physical_disks() -> io::Result<Vec<String>> {
-    let mut disks = Vec::new();
-    for entry in std::fs::read_dir("/sys/block")? {
-        let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        // A `device` link is what separates a real disk from a virtual one.
-        if entry.path().join("device").exists() {
-            disks.push(name);
-        }
-    }
-    Ok(disks)
 }

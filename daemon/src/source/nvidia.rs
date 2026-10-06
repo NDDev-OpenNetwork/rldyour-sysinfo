@@ -16,9 +16,9 @@
 /// One reading off the primary adapter.
 pub struct Reading {
     /// Share of the sampling period the GPU was busy, in percent.
-    pub usage: f32,
+    pub usage: Option<f32>,
     /// Share of video memory in use, in percent.
-    pub memory: f32,
+    pub memory: Option<f32>,
     pub temperature: Option<f32>,
 }
 
@@ -44,16 +44,17 @@ impl Gpu {
         // Cheap handle lookup against the already-initialised library; the
         // device cannot be cached because it borrows the NVML instance.
         let device = self.nvml.as_ref()?.device_by_index(0).ok()?;
-        let usage = device.utilization_rates().ok()?.gpu as f32;
-        let memory = device.memory_info().ok()?;
+        let usage = device
+            .utilization_rates()
+            .ok()
+            .map(|value| value.gpu as f32);
+        let memory = device.memory_info().ok().and_then(|memory| {
+            (memory.total > 0).then(|| memory.used as f32 * 100.0 / memory.total as f32)
+        });
 
         Some(Reading {
             usage,
-            memory: if memory.total == 0 {
-                0.0
-            } else {
-                memory.used as f32 * 100.0 / memory.total as f32
-            },
+            memory,
             temperature: device
                 .temperature(TemperatureSensor::Gpu)
                 .ok()
