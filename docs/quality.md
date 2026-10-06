@@ -64,6 +64,12 @@ on the default branch. The `github-pages` environment remains restricted to
 repair also requires an existing release tag, preventing an unreleased main
 snapshot from entering the stable APT repository.
 
+The Debian maintainer-script regression runs the real helper in an isolated
+`DPKG_ROOT`: a fresh install must create the global user-socket enablement link,
+an enabled upgrade must preserve it, and an explicit disablement must survive
+an upgrade. CI also installs the package on Ubuntu and queries systemctl's
+global state rather than guessing the helper's link directory.
+
 Resource measurements should report cadence, duration, CPU time per core and
 the memory accounting method. RSS, Linux Pss and macOS physical footprint are
 different quantities. Short unloaded measurements establish a regression

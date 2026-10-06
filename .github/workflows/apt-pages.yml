@@ -66,6 +66,7 @@ jobs:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
           set -euo pipefail
+          umask 022
           mkdir -p site/apt/pool/main/r/rldyour-sysinfo site/apt/dists/stable/main/binary-amd64
           scripts/build-deb.sh daemon/target/release/rldyour-sysinfod site/apt/pool/main/r/rldyour-sysinfo
           cd site/apt
@@ -83,6 +84,9 @@ jobs:
           gpg --batch --yes --armor --detach-sign -o dists/stable/Release.gpg dists/stable/Release
           gpg --batch --yes --clearsign -o dists/stable/InRelease dists/stable/Release
           install -m644 ../../packaging/apt/rldyour-sysinfo.asc rldyour-sysinfo.asc
+          # Only public repository content; keep the sandboxed _apt downloader
+          # able to traverse and read both compressed and plain indexes.
+          chmod -R a+rX .
       - name: Verify APT installation
         run: |
           sudo install -m644 packaging/apt/rldyour-sysinfo.asc /usr/share/keyrings/rldyour-sysinfo.asc
@@ -94,7 +98,7 @@ jobs:
           grep -qx 'ExecStart=/usr/bin/rldyour-sysinfod' /usr/lib/systemd/user/rldyour-sysinfod.service
           # The maintainer scripts must have enabled the socket for every
           # login session — the package is useless until it exists.
-          test -L /usr/lib/systemd/user/sockets.target.wants/rldyour-sysinfod.socket
+          systemctl --global is-enabled rldyour-sysinfod.socket
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site

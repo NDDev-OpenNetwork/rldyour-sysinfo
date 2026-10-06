@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-10-07
+
+- Enable the Debian user socket on fresh installation and preserve explicit
+  administrator disablement on upgrades, following the native helper lifecycle.
+- Test the real helper in an isolated package root and query global systemctl
+  state after installing the package in CI.
+- Publish signed APT only after an existing stable release, preserve the
+  main-only deployment environment and make public indexes readable to _apt.
+
 ## 0.3.0 — 2026-10-07
 
 - Separate the bounded streaming server, platform socket activation and metric
