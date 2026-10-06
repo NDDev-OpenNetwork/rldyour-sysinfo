@@ -23,6 +23,8 @@
   perform the handshake write asynchronously.
 - Update Windows sysinfo to 0.39.6, require Rust 1.95 and Swift 6 for macOS,
   and extend cross-platform lifecycle, socket and packaging checks.
+- Link the macOS daemon against the system Swift runtime search path so the
+  IOKit bridge also loads in standalone Intel builds without Xcode paths.
 
 ## 0.2.1 — unreleased changes incorporated into 0.3.0
 
