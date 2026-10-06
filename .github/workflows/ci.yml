@@ -35,6 +35,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: daemon
@@ -75,6 +76,7 @@ jobs:
   windows-nvidia:
     name: Windows with NVIDIA support
     runs-on: windows-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: daemon
@@ -153,6 +155,23 @@ jobs:
           } finally {
             Stop-Process -Id $daemon.Id -Force -ErrorAction SilentlyContinue
           }
+
+      - name: Explain a macOS daemon crash
+        if: failure() && runner.os == 'macOS'
+        run: |
+          python3 - <<'PY_CRASH'
+          import json, pathlib
+          for path in (pathlib.Path.home() / 'Library/Logs/DiagnosticReports').glob('rldyour-sysinfod*.ips'):
+              lines = path.read_text().split('\n', 1)
+              try:
+                  report = json.loads(lines[1])
+              except (ValueError, IndexError):
+                  continue
+              print(json.dumps({key: report.get(key) for key in ('exception', 'termination', 'asi', 'faultingThread')}))
+              for thread in report.get('threads', []):
+                  if thread.get('triggered'):
+                      print(json.dumps(thread.get('frames', [])[:20]))
+          PY_CRASH
 
   platform-clients:
     name: Platform clients

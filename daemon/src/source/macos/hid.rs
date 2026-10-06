@@ -65,6 +65,22 @@ pub struct Hid {
 
 impl Hid {
     pub fn new() -> Option<Self> {
+        // A virtual Mac has no physical die sensors. Some virtualised HID
+        // event servers trap instead of returning an unavailable client.
+        let mut virtual_machine: i32 = 0;
+        let mut length = std::mem::size_of_val(&virtual_machine);
+        unsafe {
+            libc::sysctlbyname(
+                c"kern.hv_vmm_present".as_ptr(),
+                (&mut virtual_machine as *mut i32).cast(),
+                &mut length,
+                ptr::null_mut(),
+                0,
+            )
+        };
+        if virtual_machine != 0 {
+            return None;
+        }
         let page_key = Owned::string(c"PrimaryUsagePage")?;
         let usage_key = Owned::string(c"PrimaryUsage")?;
         let product_key = Owned::string(c"Product")?;

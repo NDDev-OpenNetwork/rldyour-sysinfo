@@ -43,7 +43,9 @@ launchctl bootout "gui/$(id -u)/com.nddev-opennetwork.rldyour-sysinfo" 2>/dev/nu
 launchctl bootout "gui/$(id -u)/com.nddev-opennetwork.rldyour-sysinfod" 2>/dev/null || true
 # Previous installers launched through `open`, so bootout did not own the app.
 while IFS= read -r pid; do
-  [[ -n "${pid}" ]] && kill -TERM "${pid}" 2>/dev/null || true
+  if [[ -n "${pid}" ]]; then
+    kill -TERM "${pid}" 2>/dev/null || true
+  fi
 done < <(pgrep -f "^${APP_DIR}/Contents/MacOS/rldyour-sysinfo$" || true)
 install -m755 "${STAGE}/rldyour-sysinfod" "${BIN_DIR}/rldyour-sysinfod.new"
 mv -f "${BIN_DIR}/rldyour-sysinfod.new" "${BIN_DIR}/rldyour-sysinfod"
