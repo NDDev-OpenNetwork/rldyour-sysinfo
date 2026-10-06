@@ -58,6 +58,12 @@ The two layouts must not be mixed through stale user overrides. A GNOME
 extension installed into a running Wayland session may need the next login
 before Shell discovers it; the installer does not restart that session.
 
+APT publication follows the successful GitHub release through `workflow_run`
+on the default branch. The `github-pages` environment remains restricted to
+`main`; publication checks out and verifies the released tag/commit. A manual
+repair also requires an existing release tag, preventing an unreleased main
+snapshot from entering the stable APT repository.
+
 Resource measurements should report cadence, duration, CPU time per core and
 the memory accounting method. RSS, Linux Pss and macOS physical footprint are
 different quantities. Short unloaded measurements establish a regression
