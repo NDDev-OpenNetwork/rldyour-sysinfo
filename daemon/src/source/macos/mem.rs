@@ -1,6 +1,8 @@
 //! macOS memory and swap pressure from Mach VM statistics and sysctl.
 
+use super::mach::Host;
 use libc::{c_int, c_uint, c_void};
+use std::ffi::CStr;
 use std::io;
 use std::mem;
 use std::ptr;
@@ -47,7 +49,6 @@ struct SwapUsage {
 }
 
 unsafe extern "C" {
-    fn mach_host_self() -> c_uint;
     fn host_statistics64(
         host: c_uint,
         flavor: c_int,
@@ -58,6 +59,8 @@ unsafe extern "C" {
 
 pub struct Memory {
     total_bytes: u64,
+    host: Host,
+    page_size: u64,
 }
 
 pub struct Usage {
@@ -70,24 +73,26 @@ pub struct Usage {
 impl Memory {
     pub fn new() -> io::Result<Self> {
         Ok(Self {
-            total_bytes: sysctl_u64("hw.memsize")?,
+            total_bytes: sysctl_u64(c"hw.memsize")?,
+            host: Host::new(),
+            page_size: unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64,
         })
     }
 
     pub fn usage(&mut self) -> io::Result<Option<Usage>> {
         Ok(Some(Usage {
-            used: memory_used(self.total_bytes)?,
-            swap: swap_used()?,
+            used: memory_used(self.host.0, self.total_bytes, self.page_size)?,
+            swap: swap_used().ok().flatten(),
         }))
     }
 }
 
-fn memory_used(total_bytes: u64) -> io::Result<f32> {
+fn memory_used(host: c_uint, total_bytes: u64, page_size: u64) -> io::Result<f32> {
     let mut info = VmStatistics64::default();
     let mut count = (mem::size_of::<VmStatistics64>() / mem::size_of::<c_int>()) as c_uint;
     let result = unsafe {
         host_statistics64(
-            mach_host_self(),
+            host,
             HOST_VM_INFO64,
             (&mut info as *mut VmStatistics64).cast(),
             &mut count,
@@ -98,7 +103,6 @@ fn memory_used(total_bytes: u64) -> io::Result<f32> {
             "host_statistics64 failed: {result}"
         )));
     }
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
     let available =
         (info.free_count as u64 + info.inactive_count as u64 + info.speculative_count as u64)
             * page_size;
@@ -107,19 +111,17 @@ fn memory_used(total_bytes: u64) -> io::Result<f32> {
 
 fn swap_used() -> io::Result<Option<f32>> {
     let mut usage = SwapUsage::default();
-    sysctl_value("vm.swapusage", &mut usage)?;
+    sysctl_value(c"vm.swapusage", &mut usage)?;
     Ok((usage.total > 0).then(|| usage.used as f32 * 100.0 / usage.total as f32))
 }
 
-fn sysctl_u64(name: &str) -> io::Result<u64> {
+fn sysctl_u64(name: &CStr) -> io::Result<u64> {
     let mut value = 0u64;
     sysctl_value(name, &mut value)?;
     Ok(value)
 }
 
-fn sysctl_value<T>(name: &str, value: &mut T) -> io::Result<()> {
-    let name = std::ffi::CString::new(name)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "sysctl name contains NUL"))?;
+fn sysctl_value<T>(name: &CStr, value: &mut T) -> io::Result<()> {
     let mut length = mem::size_of::<T>();
     let result = unsafe {
         libc::sysctlbyname(

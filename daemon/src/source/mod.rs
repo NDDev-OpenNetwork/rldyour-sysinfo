@@ -12,6 +12,9 @@ mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
+#[cfg(target_os = "linux")]
+mod counters;
+
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod nvidia;
 

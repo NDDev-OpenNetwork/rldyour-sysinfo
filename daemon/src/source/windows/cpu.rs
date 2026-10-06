@@ -4,6 +4,7 @@ use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 pub struct Cpu {
     system: System,
+    primed: bool,
 }
 
 impl Cpu {
@@ -12,15 +13,19 @@ impl Cpu {
             system: System::new_with_specifics(
                 RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()),
             ),
+            primed: false,
         }
     }
 
     /// Busy share of all cores since the previous call, in percent.
     ///
-    /// sysinfo primes the counter baseline at construction, so unlike the
-    /// counter-diff readers the first call already returns a real figure.
-    pub fn usage(&mut self) -> f32 {
+    /// The initial call only primes counters; the first publication can happen
+    /// before sysinfo's minimum refresh interval and must not pretend to be idle.
+    pub fn usage(&mut self) -> Option<f32> {
         self.system.refresh_cpu_usage();
-        self.system.global_cpu_usage()
+        if !std::mem::replace(&mut self.primed, true) {
+            return None;
+        }
+        Some(self.system.global_cpu_usage())
     }
 }

@@ -28,7 +28,12 @@ impl Cpu {
     /// The first call establishes the baseline and reports nothing, because a
     /// percentage needs two samples.
     pub fn usage(&mut self) -> io::Result<Option<f32>> {
-        let line = self.file.read()?.lines().next().unwrap_or_default();
+        let line = self
+            .file
+            .read_prefix(1024)?
+            .lines()
+            .next()
+            .unwrap_or_default();
         let current = parse_stat_line(line);
         let previous = self.previous.replace(current);
 

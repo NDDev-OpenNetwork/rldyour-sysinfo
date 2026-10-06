@@ -26,9 +26,8 @@ daemon that restarts in milliseconds, is what makes the thing maintainable.
 
 ### What the design deliberately avoids
 
-- **No async runtime.** One timer does not pay for `tokio` or `async-io`, even
-  at the fastest cadence clients can request. The daemon is one sleeping
-  thread plus one accept thread.
+- **No async runtime in Rust.** The daemon owns one sampling thread and one
+  accept thread. Native hardware libraries can also create their own threads.
 - **No D-Bus stack.** `zbus` spawns a thread per connection and its own
   executor. For pushing under two hundred bytes a tick, a plain `UnixListener`
   from the standard library costs nothing and depends on nothing.
@@ -41,7 +40,18 @@ daemon that restarts in milliseconds, is what makes the thing maintainable.
 
 ## Cost
 
-Measured on the development machine, resident private memory (`Pss`):
+The server admits at most 32 clients, keeps at most 32 accepted connections
+queued, reads at most 256 handshake bytes and waits at most 250 ms total.
+Writes are nonblocking: a reader with a full buffer is disconnected. One
+shared sampling clock caps hardware reads at twice a second even during
+connection churn. When no clients are attached, no samples are collected.
+The JSON buffer is reused; native APIs may allocate temporary objects.
+
+The macOS client uses dispatch socket readiness instead of a blocked reader
+thread, and every client bounds incoming frames to 4096 bytes.
+
+Historical Linux measurements on the development machine, resident private
+memory (`Pss`):
 
 | Configuration | Pss | Threads | Binary |
 |---|---|---|---|
@@ -77,7 +87,7 @@ with `--no-default-features`.
 
 ## Install on Linux
 
-Requires Rust 1.85 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS) through 50.
+Requires Rust 1.95 or newer and GNOME Shell 46 (Ubuntu 24.04 LTS) through 50.
 
 Ubuntu amd64 can install the signed package repository:
 
@@ -113,7 +123,7 @@ To remove everything: `./uninstall.sh`.
 
 ## Install on macOS
 
-Requires macOS 12 or newer, Rust 1.85 or newer and the Swift toolchain shipped
+Requires macOS 12 or newer, Rust 1.95 or newer and the Swift 6 toolchain shipped
 with Xcode Command Line Tools.
 
 ```sh
@@ -134,7 +144,7 @@ Remove it with `./uninstall-macos.sh`.
 
 ## Install on Windows
 
-Requires Windows 10 or newer and Rust 1.85 or newer. Run PowerShell as the
+Requires Windows 10 or newer and Rust 1.95 or newer. Run PowerShell as the
 current desktop user:
 
 ```powershell
@@ -160,7 +170,8 @@ Open the extension's preferences for what most people want to change:
   lists everything regardless.
 
 The daemon accepts these environment variables. On Linux they can be placed in
-`~/.config/systemd/user/rldyour-sysinfod.service`; on macOS, add them to the
+an `[Service]` drop-in under `~/.config/systemd/user/rldyour-sysinfod.service.d/`;
+on macOS, add them to the
 daemon LaunchAgent's `EnvironmentVariables` dictionary.
 
 | Variable | Default | Meaning |
@@ -203,13 +214,16 @@ Python clients can use `pip install rldyour-sysinfo`; the command
 ./scripts/check-extension.sh                      # what CI runs for the extension
 cd daemon && cargo test && cargo clippy --all-targets --all-features -- -D warnings
 cd extension && gjs -m tests/smoke.js             # needs the daemon reachable
-swiftc -typecheck macos/RldyourSysinfo.swift       # macOS menu client
+swiftc -swift-version 6 -parse-as-library -typecheck macos/*.swift       # macOS menu client
 ```
 
 `scripts/check-extension.sh` covers syntax, metadata, the settings keys the code
 actually reads, process isolation between the shell and preferences processes,
 and deprecated modules. It needs no running shell, which matters because
 Wayland gives no way to reload extension code without a new login.
+
+[`docs/quality.md`](docs/quality.md) records the resource limits, module
+boundaries, platform checks and primary references behind the implementation.
 
 ## Licence
 

@@ -1,6 +1,7 @@
 //! Linux collector backed directly by procfs, sysfs, and optional NVML.
 
 mod cpu;
+mod devices;
 mod disk;
 mod mem;
 mod net;
@@ -16,7 +17,6 @@ use net::Network;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
-use std::time::Instant;
 use temp::Sensor;
 
 pub struct LinuxCollector {
@@ -27,7 +27,6 @@ pub struct LinuxCollector {
     gpu: Gpu,
     cpu_temperature: Option<Sensor>,
     disk_temperature: Option<Sensor>,
-    sampled_at: Instant,
 }
 
 impl MetricsSource for LinuxCollector {
@@ -40,14 +39,10 @@ impl MetricsSource for LinuxCollector {
             gpu: Gpu::new(),
             cpu_temperature: Sensor::cpu(),
             disk_temperature: Sensor::disk(),
-            sampled_at: Instant::now(),
         })
     }
 
     fn sample(&mut self) -> Snapshot {
-        let now = Instant::now();
-        let seconds = now.duration_since(self.sampled_at).as_secs_f64();
-        self.sampled_at = now;
         let mut snapshot = Snapshot {
             cpu: self.cpu.usage().ok().flatten(),
             ..Snapshot::default()
@@ -56,17 +51,17 @@ impl MetricsSource for LinuxCollector {
             snapshot.memory = Some(usage.used);
             snapshot.swap = usage.swap;
         }
-        if let Ok(Some(throughput)) = self.disk.throughput(seconds) {
+        if let Ok(Some(throughput)) = self.disk.throughput() {
             snapshot.disk_read = Some(throughput.read);
             snapshot.disk_write = Some(throughput.write);
         }
-        if let Ok(Some(throughput)) = self.network.throughput(seconds) {
+        if let Ok(Some(throughput)) = self.network.throughput() {
             snapshot.net_rx = Some(throughput.rx);
             snapshot.net_tx = Some(throughput.tx);
         }
         if let Some(reading) = self.gpu.read() {
-            snapshot.gpu = Some(reading.usage);
-            snapshot.gpu_memory = Some(reading.memory);
+            snapshot.gpu = reading.usage;
+            snapshot.gpu_memory = reading.memory;
             snapshot.gpu_temperature = reading.temperature;
         }
         snapshot.cpu_temperature = read_sensor(self.cpu_temperature.as_mut());
@@ -98,6 +93,13 @@ impl VirtualFile {
         self.file.seek(SeekFrom::Start(0))?;
         self.buf.clear();
         self.file.read_to_string(&mut self.buf)?;
+        Ok(&self.buf)
+    }
+
+    fn read_prefix(&mut self, limit: u64) -> io::Result<&str> {
+        self.file.seek(SeekFrom::Start(0))?;
+        self.buf.clear();
+        (&mut self.file).take(limit).read_to_string(&mut self.buf)?;
         Ok(&self.buf)
     }
 }

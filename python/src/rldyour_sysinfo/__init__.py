@@ -11,7 +11,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, TypedDict
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
+MAX_LINE = 4096
 
 
 class Cpu(TypedDict):
@@ -75,7 +76,9 @@ def _decode(line: bytes) -> Sample:
     required = {"v", "cpu", "memory", "gpu", "disk", "net"}
     # The version byte is the protocol contract; extra keys inside v1 are a
     # compatible extension, not a different protocol.
-    if not isinstance(value, dict) or not required.issubset(value) or value.get("v") != 1:
+    if (not isinstance(value, dict) or not required.issubset(value)
+            or type(value.get("v")) is not int or value["v"] != 1
+            or any(not isinstance(value[key], dict) for key in required - {"v"})):
         raise ValueError("unsupported rldyour-sysinfo sample")
     return value
 
@@ -85,7 +88,7 @@ def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> It
 
     `interval` is the cadence in seconds; 0 selects realtime (500 ms ticks).
     """
-    if not 0 <= interval <= 60:
+    if type(interval) is not int or not 0 <= interval <= 60:
         raise ValueError("interval must be between 0 (realtime) and 60 seconds")
     # CPython on Windows does not build socket.AF_UNIX, even though the OS
     # itself speaks it; fail with the reason rather than an AttributeError.
@@ -95,7 +98,9 @@ def samples(interval: int = 5, path: str | os.PathLike[str] | None = None) -> It
         connection.connect(str(Path(path) if path is not None else socket_path()))
         connection.sendall(json.dumps({"interval": interval}).encode() + b"\n")
         with connection.makefile("rb") as stream:
-            for line in stream:
+            while line := stream.readline(MAX_LINE + 1):
+                if len(line) > MAX_LINE or not line.endswith(b"\n"):
+                    raise ValueError("invalid or oversized rldyour-sysinfo frame")
                 yield _decode(line)
 
 

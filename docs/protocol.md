@@ -32,11 +32,16 @@ whole seconds:
   the range is ignored.
 - The daemon serves the fastest cadence any connected client requested and
   falls back to its configured `RLDYOUR_SYSINFO_INTERVAL` (default 5).
-- A new connection wakes the daemon's loop at once, so the first line is
-  never a full tick late.
+- A new connection wakes the daemon's loop at once and receives the latest
+  completed snapshot. If that snapshot is already due at the requested
+  cadence, the collector refreshes it first. Connecting does not force extra
+  hardware reads or extra publications to existing clients.
 - A client that sends nothing gets the configured cadence — the handshake
   is optional.
-- The daemon reads at most one line and waits at most 250 ms for it.
+- The daemon reads at most 256 bytes and waits at most 250 ms total for the
+  whole line. An oversized opening line is disconnected. Only a complete
+  object with a whole-number `interval` is a cadence request; malformed or
+  unsupported requests select the configured cadence.
 
 ## Sample
 
@@ -69,6 +74,11 @@ version they do not implement; new fields may appear inside version 1
 without a version bump — only an incompatible change increments it.
 
 ## Lifecycle
+
+The server admits at most 32 clients. A client that cannot receive a complete
+sample without blocking is disconnected and may reconnect on a backoff.
+Every client should enforce the 4096-byte frame ceiling. When there are no
+clients, the daemon does not collect hardware samples.
 
 Linux and macOS use socket activation (systemd user socket, launchd
 `Sockets`), so the daemon may exit after thirty seconds without clients and

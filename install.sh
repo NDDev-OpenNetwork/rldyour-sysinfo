@@ -16,10 +16,11 @@ EXT_DIR="${HOME}/.local/share/gnome-shell/extensions/${UUID}"
 say() { printf '\033[1m==>\033[0m %s\n' "$1"; }
 
 say "Building the daemon"
-cargo build --release --manifest-path "${ROOT}/daemon/Cargo.toml"
+cargo build --release --locked --manifest-path "${ROOT}/daemon/Cargo.toml"
 
 say "Installing the daemon into ${BIN_DIR}"
-install -Dm755 "${ROOT}/daemon/target/release/rldyour-sysinfod" "${BIN_DIR}/rldyour-sysinfod"
+install -Dm755 "${ROOT}/daemon/target/release/rldyour-sysinfod" "${BIN_DIR}/rldyour-sysinfod.new"
+mv -f "${BIN_DIR}/rldyour-sysinfod.new" "${BIN_DIR}/rldyour-sysinfod"
 
 say "Installing the user units into ${UNIT_DIR}"
 install -Dm644 "${ROOT}/daemon/systemd/rldyour-sysinfod.socket" "${UNIT_DIR}/rldyour-sysinfod.socket"
@@ -30,6 +31,7 @@ systemctl --user daemon-reload
 # The socket carries the activation; the service starts on the first connection
 # and stops again once the last client goes away.
 systemctl --user enable --now rldyour-sysinfod.socket
+systemctl --user try-restart rldyour-sysinfod.service
 
 say "Installing the extension into ${EXT_DIR}"
 rm -rf "${EXT_DIR}"
