@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, macos-26-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, macos-26-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,8 +174,12 @@ jobs:
           PY_CRASH
 
   platform-clients:
-    name: Platform clients
-    runs-on: macos-latest
+    name: Platform clients (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-26-intel]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: swiftc -target "$(uname -m)-apple-macosx12.0" -swift-version 6 -parse-as-library -warnings-as-errors -O -framework AppKit macos/*.swift -o /tmp/rldyour-sysinfo-app
@@ -214,6 +218,21 @@ jobs:
         run: PYTHONPATH=python/src uv run --no-project --with pytest==9.1.1 pytest python/tests
       - if: runner.os == 'Linux'
         run: uv build python
+
+  debian-package:
+    name: Debian package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y dpkg-dev
+      - run: |
+          cargo build --release --locked --manifest-path daemon/Cargo.toml
+          ./scripts/build-deb.sh daemon/target/release/rldyour-sysinfod /tmp/sysinfo-deb
+          dpkg-deb -x /tmp/sysinfo-deb/*.deb /tmp/sysinfo-unpack
+          test "$(stat -c '%a' /tmp/sysinfo-unpack)" = 755
+          grep -qx 'ExecStart=/usr/bin/rldyour-sysinfod' /tmp/sysinfo-unpack/usr/lib/systemd/user/rldyour-sysinfod.service
+          dpkg-deb -f /tmp/sysinfo-deb/*.deb Depends | grep -q 'libc6'
+          /tmp/sysinfo-unpack/usr/bin/rldyour-sysinfod --version
 
   audit:
     name: Dependency advisories

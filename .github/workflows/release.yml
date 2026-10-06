@@ -47,7 +47,11 @@ jobs:
 
   macos:
     needs: verify
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-26-intel]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo test --locked --no-default-features --manifest-path daemon/Cargo.toml
@@ -74,7 +78,7 @@ jobs:
           (cd dist/stage && zip -qry "../rldyour-sysinfo-${version}-${arch}-macos.zip" .)
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: macos
+          name: macos-${{ matrix.os }}
           path: dist/rldyour-sysinfo-*.zip
 
   windows:
