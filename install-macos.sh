@@ -12,7 +12,7 @@ else
 fi
 [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release version' >&2; exit 1; }
 STAGE="$(mktemp -d)"
-trap 'rm -rf "${STAGE}"' EXIT
+trap 'rm -r "${STAGE}"' EXIT
 STAGED_APP="${STAGE}/rldyour-sysinfo.app"
 install -d "${STAGED_APP}/Contents/MacOS"
 
@@ -38,6 +38,19 @@ fi
 /usr/libexec/PlistBuddy -c 'Add :LSUIElement bool true' "${STAGED_APP}/Contents/Info.plist"
 codesign --force --sign - "${STAGED_APP}"
 
+# Refuse to replace a redirected directory or a foreign bundle at this path.
+if [[ -L "${APP_DIR}" ]]; then
+  echo 'Sysinfo application path is a symlink; refusing replacement' >&2
+  exit 1
+fi
+if [[ -f "${APP_DIR}/Contents/Info.plist" ]]; then
+  installed_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_DIR}/Contents/Info.plist")"
+  [[ "${installed_id}" == 'com.nddev-opennetwork.rldyour-sysinfo' ]] || {
+    echo 'Application path contains a different bundle; refusing replacement' >&2
+    exit 1
+  }
+fi
+
 # Build and validate the complete replacement before touching a live process.
 launchctl bootout "gui/$(id -u)/com.nddev-opennetwork.rldyour-sysinfo" 2>/dev/null || true
 launchctl bootout "gui/$(id -u)/com.nddev-opennetwork.rldyour-sysinfod" 2>/dev/null || true
@@ -49,7 +62,7 @@ while IFS= read -r pid; do
 done < <(pgrep -f "^${APP_DIR}/Contents/MacOS/rldyour-sysinfo$" || true)
 install -m755 "${STAGE}/rldyour-sysinfod" "${BIN_DIR}/rldyour-sysinfod.new"
 mv -f "${BIN_DIR}/rldyour-sysinfod.new" "${BIN_DIR}/rldyour-sysinfod"
-rm -rf "${APP_DIR}"
+rm -r "${APP_DIR}"
 mv "${STAGED_APP}" "${APP_DIR}"
 
 sed -e "s|@HOME@|${HOME}|g" "${ROOT}/macos/com.nddev-opennetwork.rldyour-sysinfod.plist" > "${AGENT_DIR}/com.nddev-opennetwork.rldyour-sysinfod.plist"
