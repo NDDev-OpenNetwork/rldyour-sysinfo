@@ -233,6 +233,8 @@ jobs:
           grep -qx 'ExecStart=/usr/bin/rldyour-sysinfod' /tmp/sysinfo-unpack/usr/lib/systemd/user/rldyour-sysinfod.service
           dpkg-deb -f /tmp/sysinfo-deb/*.deb Depends | grep -q 'libc6'
           /tmp/sysinfo-unpack/usr/bin/rldyour-sysinfod --version
+          sudo dpkg -i /tmp/sysinfo-deb/*.deb
+          systemctl --global is-enabled rldyour-sysinfod.socket
 
   audit:
     name: Dependency advisories
