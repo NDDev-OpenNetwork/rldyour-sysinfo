@@ -45,7 +45,7 @@ compile in Swift 6 mode with warnings as errors and target macOS 12; run both
 format/model and dispatch socket checks. Test socket activation and idle exit
 under the actual service managers, not only a manually launched process.
 
-CI exercises Linux, macOS and Windows, including Windows with and without
+CI exercises Linux, Apple silicon/Intel macOS and Windows, including Windows with and without
 NVIDIA. Rust 1.95 is the minimum version after updating Windows `sysinfo` to
 0.39.6. The Python client targets CPython builds providing AF_UNIX; Windows
 CPython currently lacks it, so Windows E2E uses .NET sockets. Windows does not
