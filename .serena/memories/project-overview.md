@@ -1,6 +1,6 @@
 # Project overview
 
-Provenance: repository source and verification on 2026-09-20.
+Provenance: repository source and verification on 2026-10-08.
 
 `rldyour-sysinfo` publishes low-overhead host metrics over a versioned,
 newline-delimited JSON protocol. The Rust daemon owns collection and cadence.
@@ -21,5 +21,13 @@ its first sample. On Windows, stock CPython never exposes `socket.AF_UNIX`;
 the wire protocol there is exercised through .NET's `UnixDomainSocketEndPoint`
 (`scripts/e2e-sample.ps1`).
 
-The minimum supported Rust version is 1.85. Version 0.2.1 supports Linux,
-macOS, and Windows 10 or newer at the daemon layer.
+The minimum supported Rust version is 1.95. The current stable release is
+0.3.1 and supports Linux, macOS 12+, and Windows 10 or newer at the daemon
+layer. GNOME Shell 46–50 is qualified; Wayland extensions need a new login
+after installation because GNOME Shell cannot reload them in place.
+
+The 0.3.1 Debian lifecycle fix enables the user socket on a fresh install,
+preserves an administrator's explicit disablement on upgrades, and publishes
+signed APT only after the matching stable GitHub release. Installed daemons
+are socket-activated and stop sampling without clients; a zero-client daemon
+exit is healthy, not a crash.

@@ -10,6 +10,8 @@ The protocol also has a dependency-free Python client published as
 `rldyour-sysinfo` on PyPI. The Rust daemon is published as
 `rldyour-sysinfod` on crates.io.
 
+Current stable release: **0.3.1**.
+
 ![The indicator in the top bar](docs/panel.png)
 
 ## Why it is two pieces

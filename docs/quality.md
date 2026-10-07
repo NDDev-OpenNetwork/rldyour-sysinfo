@@ -75,7 +75,24 @@ the memory accounting method. RSS, Linux Pss and macOS physical footprint are
 different quantities. Short unloaded measurements establish a regression
 baseline, not a guarantee of zero leaks or permanent system stability.
 
-## Primary references reviewed for 0.3.0
+## 0.3.1 qualification — 2026-10-08
+
+The current release passed the native Rust, Clippy, Python, GJS, Swift and
+package-lifecycle gates on Linux, macOS ARM/Intel and Windows. Installed Mac
+and Ubuntu daemons passed the live socket regression for metric shape, cadence,
+connection churn, bounded handshakes and silent peers. The Debian maintainer
+script was checked for fresh-install socket enablement and preservation of an
+explicit administrator disablement during upgrades. No process lists, user
+files or private clipboard data are part of these checks.
+
+The release archive and APT publication are tied to the merged stable commit.
+Socket activation owns the listener; a daemon exiting after the idle period
+with no clients is the documented low-resource state. Hardware support remains
+model-dependent: unavailable temperatures or GPU readings are represented as
+`null`, and a passing runtime check does not certify firmware or physical
+hardware reliability.
+
+## Primary references reviewed for 0.3.1
 
 - [Rust bounded channels](https://doc.rust-lang.org/std/sync/mpsc/fn.sync_channel.html)
   and [nonblocking Unix streams](https://doc.rust-lang.org/std/os/unix/net/struct.UnixStream.html).
