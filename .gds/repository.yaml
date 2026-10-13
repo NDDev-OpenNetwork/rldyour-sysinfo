@@ -4,19 +4,21 @@ repository:
   display_name: rldyour-sysinfo
   roles:
   - project
-  lifecycle: active
+  lifecycle: archived
 provider:
   type: github
-  installation: installation:github-nddev-technocracy-opennetwork
-  owner: NDDev-Technocracy-OpenNetwork
+  installation: installation:github-nddev-technocracy-archive
+  owner: NDDev-Technocracy-Archive
   repository_id: 1333577156
   name: rldyour-sysinfo
   aliases:
+  - owner: NDDev-Technocracy-OpenNetwork
+    name: rldyour-sysinfo
   - owner: NDDev-Technocracy-Sandbox
     name: rldyour-sysinfo
 classification:
   portfolios:
-  - portfolio:nddev-technocracy-opennetwork
+  - portfolio:nddev-technocracy-archive
   visibility_contract: public
   data_classification: public
 product:
