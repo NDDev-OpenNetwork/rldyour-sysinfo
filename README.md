@@ -1,6 +1,6 @@
 # rldyour-sysinfo
 
-[![CI](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml/badge.svg)](https://github.com/NDDev-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml)
+[![CI](https://github.com/NDDev-Technocracy-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml/badge.svg)](https://github.com/NDDev-Technocracy-OpenNetwork/rldyour-sysinfo/actions/workflows/ci.yml)
 
 Low-overhead live system metrics from one Rust daemon on Linux, macOS and
 Windows. Linux has a GNOME Shell indicator, macOS has a native menu bar client,
