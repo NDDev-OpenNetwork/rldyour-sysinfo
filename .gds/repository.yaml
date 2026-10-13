@@ -7,19 +7,21 @@ repository:
   lifecycle: active
 provider:
   type: github
-  installation: installation:github-nddev-technocracy-sandbox
-  owner: NDDev-Technocracy-Sandbox
+  installation: installation:github-nddev-technocracy-opennetwork
+  owner: NDDev-Technocracy-OpenNetwork
   repository_id: 1333577156
   name: rldyour-sysinfo
+  aliases:
+  - owner: NDDev-Technocracy-Sandbox
+    name: rldyour-sysinfo
 classification:
   portfolios:
-  - "portfolio:nddev-technocracy-sandbox"
+  - portfolio:nddev-technocracy-opennetwork
   visibility_contract: public
   data_classification: public
 product:
-  purpose: >-
-    Low-overhead system monitor for Linux, macOS and Windows: a Rust metrics
-    daemon with native platform collectors and thin desktop clients.
+  purpose: 'Low-overhead system monitor for Linux, macOS and Windows: a Rust metrics
+    daemon with native platform collectors and thin desktop clients.'
 policy:
   profiles:
   - repository-default
