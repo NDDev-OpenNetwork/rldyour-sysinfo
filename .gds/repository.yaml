@@ -4,7 +4,7 @@ repository:
   display_name: rldyour-sysinfo
   roles:
   - project
-  lifecycle: archived
+  lifecycle: active
 provider:
   type: github
   installation: installation:github-nddev-technocracy-archive
