@@ -8,11 +8,17 @@ updates:
       # four-char-code is bound to smc 0.2.4's ^0.0.5 API (see daemon/Cargo.toml).
       - dependency-name: "four-char-code"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    cooldown:
+      default-days: 7
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: pip
     directory: /python
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
