@@ -18,7 +18,7 @@ permissions:
 jobs:
   cargo:
     if: inputs.cargo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: cargo
     permissions:
       contents: read
@@ -34,7 +34,7 @@ jobs:
 
   pypi:
     if: inputs.pypi
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: pypi
     permissions:
       id-token: write
